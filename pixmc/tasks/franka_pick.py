@@ -16,7 +16,7 @@ from pixmc.tasks.base.base_task import BaseTask
 
 from isaacgym import gymtorch
 from isaacgym import gymapi
-
+import cv2
 
 class FrankaPick(BaseTask):
 
@@ -71,7 +71,21 @@ class FrankaPick(BaseTask):
         self.cfg["device_id"] = device_id
         self.cfg["headless"] = headless
 
-        super().__init__(cfg=self.cfg, enable_camera_sensors=(self.obs_type == "pixels"))
+        # Third person cam [FOR STATE MODEL USE ONLY]
+        self.enable_third_person_cam = self.cfg["env"]["enable_third_person_cam"]
+        self.save_third_person_view_image = False
+        if self.enable_third_person_cam:
+            self.cam_w = self.cfg["env"]["cam"]["w"]
+            self.cam_h = self.cfg["env"]["cam"]["h"]
+            self.cam_fov = self.cfg["env"]["cam"]["fov"]
+            self.cam_ss = self.cfg["env"]["cam"]["ss"]
+            self.cam_loc_p = self.cfg["env"]["cam"]["loc_p"]
+            self.cam_loc_r = self.cfg["env"]["cam"]["loc_r"]
+            self.im_size = self.cfg["env"]["im_size"]
+            assert self.cam_h == self.im_size
+            assert self.cam_w % 2 == 0
+
+        super().__init__(cfg=self.cfg, enable_camera_sensors=(self.obs_type == "pixels" or self.enable_third_person_cam))
 
         actor_root_state_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)
         dof_state_tensor = self.gym.acquire_dof_state_tensor(self.sim)
@@ -134,7 +148,7 @@ class FrankaPick(BaseTask):
         self.to_height = torch.zeros((self.num_envs, 1), dtype=torch.float, device=self.device)
 
         # Image mean and std
-        if self.obs_type == "pixels":
+        if self.obs_type == "pixels" or self.enable_third_person_cam:
             self.im_mean = torch.tensor([0.485, 0.456, 0.406], dtype=torch.float, device=self.device).view(3, 1, 1)
             self.im_std = torch.tensor([0.229, 0.224, 0.225], dtype=torch.float, device=self.device).view(3, 1, 1)
 
@@ -255,6 +269,16 @@ class FrankaPick(BaseTask):
         if self.obs_type == "pixels":
             self.cams = []
             self.cam_tensors = []
+        if self.enable_third_person_cam:
+            self.third_person_cams = []
+            self.third_person_cam_tensors = []
+            self.save_third_person_view_image = True
+            self.third_person_cam_image_id = 0
+        # self.enable_third_person_cam = False
+        # self.third_person_cams = []
+        # self.third_person_cam_tensors = []
+        # self.save_third_person_view_image = True
+        # self.third_person_cam_image_id = 0
 
         for i in range(self.num_envs):
             # Create env instance
@@ -283,6 +307,36 @@ class FrankaPick(BaseTask):
             self.tables.append(table_actor)
             self.objects.append(object_actor)
 
+            # Set up a third person camera
+            if self.enable_third_person_cam:
+                cam_props = gymapi.CameraProperties()
+                cam_props.width = self.cam_w
+                cam_props.height = self.cam_h
+                cam_props.horizontal_fov = self.cam_fov
+                cam_props.supersampling_horizontal = self.cam_ss
+                cam_props.supersampling_vertical = self.cam_ss
+                cam_props.enable_tensors = True
+                cam_handle = self.gym.create_camera_sensor(env_ptr, cam_props)
+                # Fix the camera to the hand
+                # rigid_body_hand_ind = self.gym.find_actor_rigid_body_handle(env_ptr, franka_actor, "panda_hand")
+                # local_t = gymapi.Transform()
+                # local_t.p = gymapi.Vec3(*self.cam_loc_p)
+                # xyz_angle_rad = [np.radians(a) for a in self.cam_loc_r]
+                # local_t.r = gymapi.Quat.from_euler_zyx(*xyz_angle_rad)
+                # self.gym.attach_camera_to_body(
+                #     cam_handle, env_ptr, rigid_body_hand_ind,
+                #     local_t, gymapi.FOLLOW_TRANSFORM
+                # )
+                # Manually set camera position
+                cam_pos = gymapi.Vec3(-0.2, 0.2, 0.8)
+                cam_target = gymapi.Vec3(0.0, 0.15, 0.75)
+                self.gym.set_camera_location(cam_handle, env_ptr, cam_pos, cam_target)
+                self.third_person_cams.append(cam_handle)
+                # Camera tensor
+                cam_tensor = self.gym.get_camera_image_gpu_tensor(self.sim, env_ptr, cam_handle, gymapi.IMAGE_COLOR)
+                cam_tensor_th = gymtorch.wrap_tensor(cam_tensor)
+                self.third_person_cam_tensors.append(cam_tensor_th)
+
             # Set up camera
             if self.obs_type == "pixels":
                 # Camera
@@ -303,6 +357,13 @@ class FrankaPick(BaseTask):
                     cam_handle, env_ptr, rigid_body_hand_ind,
                     local_t, gymapi.FOLLOW_TRANSFORM
                 )
+                # cam_pos = gymapi.Vec3(0.8, -0.2, 0.8)
+                # cam_target = gymapi.Vec3(0.5, -0.2, 0.6)
+                # cam_pos = gymapi.Vec3(-0.1, 0.0, 0.8)
+                # cam_target = gymapi.Vec3(0.0, 0.0, 0.8)
+                cam_pos = gymapi.Vec3(-0.2, 0.2, 0.8)
+                cam_target = gymapi.Vec3(0.0, 0.15, 0.75)
+                self.gym.set_camera_location(cam_handle, env_ptr, cam_pos, cam_target)
                 self.cams.append(cam_handle)
                 # Camera tensor
                 cam_tensor = self.gym.get_camera_image_gpu_tensor(self.sim, env_ptr, cam_handle, gymapi.IMAGE_COLOR)
@@ -476,6 +537,24 @@ class FrankaPick(BaseTask):
         self.compute_robot_state()
         self.compute_observations()
         self.compute_reward(self.actions)
+        # Same third view camera image in env id 0
+        if self.save_third_person_view_image:
+            
+            self.gym.render_all_camera_sensors(self.sim)
+            self.gym.start_access_image_tensors(self.sim)
+            crop_l = (self.cam_w - self.im_size) // 2
+            crop_r = crop_l + self.im_size
+            image_tensor = self.third_person_cam_tensors[0][:, crop_l:crop_r, :3].permute(2, 0, 1).float() / 255
+            image_tensor = (image_tensor - self.im_mean) / self.im_std
+            self.gym.end_access_image_tensors(self.sim)
+            print(image_tensor.shape)
+            out_f = '/home/thomastian/workspace/mvp/mvp_exp_data/' + "%d.png" % self.third_person_cam_image_id
+            #self.gym.write_camera_image_to_file(self.sim, self.envs[0], self.third_person_cams[0], gymapi.IMAGE_COLOR, out_f)
+            ttt = image_tensor.cpu().numpy()
+            ttt = np.moveaxis(ttt, 0, -1) * 255
+            if self.third_person_cam_image_id > 0:
+                cv2.imwrite(out_f, ttt)
+            self.third_person_cam_image_id += 1
 
 
 @torch.jit.script

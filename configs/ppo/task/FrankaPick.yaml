@@ -1,9 +1,9 @@
 name: FrankaPick
 
 env:
-  numEnvs: 256
+  numEnvs: 1
   envSpacing: 1.5
-  episodeLength: 500
+  episodeLength: 60
 
   object_pos_init: [0.5, 0.0]
   object_pos_delta: [0.1, 0.2]
@@ -12,6 +12,17 @@ env:
 
   obs_type: oracle
 
+  im_size: 224
+
+  enable_third_person_cam: True
+
+  cam:
+    w: 298
+    h: 224
+    fov: 65
+    ss: 2
+    loc_p: [0.04, 0.0, 0.045]
+    loc_r: [180, -90.0, 0.0]
   dofVelocityScale: 0.1
   actionScale: 7.5
 

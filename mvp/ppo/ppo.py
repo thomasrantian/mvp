@@ -18,6 +18,8 @@ from torch.utils.tensorboard import SummaryWriter
 
 from mvp.ppo import RolloutStorage
 
+import cv2
+import numpy as np
 
 class PPO:
 
@@ -131,6 +133,9 @@ class PPO:
 
         self.apply_reset = apply_reset
 
+        # Save obs image and camera image flag
+        self.save_camera_image = False
+
     def test(self, path):
         state_dict = torch.load(path)
         state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
@@ -146,11 +151,11 @@ class PPO:
         torch.save(self.actor_critic.state_dict(), path)
 
     def run(self, num_learning_iterations, log_interval=1):
-        current_obs = self.vec_env.reset()
+        current_obs = self.vec_env.reset() # image n_env, 3, 224, 224
         current_states = self.vec_env.get_state()
 
         if self.is_testing:
-            maxlen = 200
+            maxlen = 0
             cur_reward_sum = torch.zeros(self.vec_env.num_envs, dtype=torch.float, device=self.device)
             cur_episode_length = torch.zeros(self.vec_env.num_envs, dtype=torch.float, device=self.device)
 
@@ -158,13 +163,19 @@ class PPO:
             episode_length = []
             successes = []
 
+            step_id = 0 # step id in the current episode
             while len(reward_sum) <= maxlen:
+                #print(len(reward_sum))
                 with torch.no_grad():
                     if self.apply_reset:
+                        print('apply reset')
+                        print(dones)
                         current_obs = self.vec_env.reset()
                         current_states = self.vec_env.get_state()
                     # Compute the action
                     actions = self.actor_critic.act_inference(current_obs, current_states)
+                    # randomize the actions
+                    actions += torch.rand(actions.shape, device=self.device) * 0.6
                     # Step the vec_environment
                     next_obs, rews, dones, infos = self.vec_env.step(actions)
                     next_states = self.vec_env.get_state()
@@ -180,6 +191,16 @@ class PPO:
                     successes.extend(infos["successes"][new_ids][:, 0].cpu().numpy().tolist())
                     cur_reward_sum[new_ids] = 0
                     cur_episode_length[new_ids] = 0
+                    #print(len(infos["third_person_cam_tensors"]))
+                    #print(cur_episode_length)
+                    # if self.save_camera_image:
+                    #     step_id += 1
+                    #     #print(next_obs.shape)
+                    #     ttt = next_obs[0,:,:,:].cpu().numpy()
+                    #     ttt = np.moveaxis(ttt, 0, -1) * 255
+                    #     #print(ttt)
+                    #     out_f = '/home/thomastian/workspace/mvp/mvp_exp_data/demo' + "%d.png" % step_id
+                    #     cv2.imwrite(out_f, ttt)
 
                     if len(new_ids) > 0:
                         print("-" * 80)
@@ -329,6 +350,8 @@ class PPO:
                        f"""{'Total time:':>{pad}} {self.tot_time:.2f}s\n"""
                        f"""{'ETA:':>{pad}} {self.tot_time / (it + 1) * (
                                num_learning_iterations - it):.1f}s\n""")
+        with open('/home/thomastian/workspace/mvp/train_log.txt', 'a') as f:
+            f.write(log_string)
         print(log_string)
 
     def update(self, cur_iter, max_iter):
