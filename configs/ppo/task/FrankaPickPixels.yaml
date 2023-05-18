@@ -13,12 +13,12 @@ env:
   obs_type: pixels
   im_size: 224
 
-  enable_third_person_cam: False
+  enable_third_person_cam: True
 
   cam:
     w: 298
     h: 224
-    fov: 65
+    fov: 50
     ss: 2
     loc_p: [0.04, 0.0, 0.045]
     loc_r: [180, -90.0, 0.0]

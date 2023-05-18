@@ -10,17 +10,45 @@ from mvp.utils.hydra_utils import omegaconf_to_dict, print_dict, dump_cfg
 from mvp.utils.hydra_utils import set_np_formatting, set_seed
 from mvp.utils.hydra_utils import parse_sim_params, parse_task
 from mvp.utils.hydra_utils import process_ppo
+import uuid
 
+# Find the path to the parent directory of the folder containing this file.
+DIR_PATH = os.path.dirname(os.path.realpath(__file__))
+# exlucde the last folder
+DIR_PATH = os.path.dirname(DIR_PATH)
+DIR_PATH = os.path.dirname(DIR_PATH)
 
 @hydra.main(config_name="config", config_path="../configs/ppo")
 def train(cfg: omegaconf.DictConfig):
 
     # Assume no multi-gpu training
-    assert cfg.num_gpus == 1
+    #assert cfg.num_gpus == 1
+    
+    # Change the num_gpu_here
+    cfg.num_gpus = 8
 
+    # Change the log dir in the mvp_exp_data folder
+    # generate a unique id for the experiment
+    cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/" + str(uuid.uuid4())
+    cfg.task.env.numEnvs = 1
+    
+    # Set the reward type
+    cfg.train.learn.reward_type = "ground_truth"
+     
     # Parse the config
     cfg_dict = omegaconf_to_dict(cfg)
+    # # Overwrite the obs encoder
+    # cfg_dict["train"]["preference_encoder"]["pretrain_dir"] = DIR_PATH + "/mvp_exp_data/mae_encoders/"
+    
     print_dict(cfg_dict)
+
+    # # For test mode only, use only one environment
+    # cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/" + "3594e5af-3b59-43e8-afc8-1c219be270eb"
+    # cfg.test = True
+    # cfg.headless = False
+    # cfg.resume = 1450
+    # cfg.task.env.numEnvs = 100
+    # cfg_dict = omegaconf_to_dict(cfg)
 
     # Create logdir and dump cfg
     if not cfg.test:
@@ -33,7 +61,7 @@ def train(cfg: omegaconf.DictConfig):
 
     # Construct task
     sim_params = parse_sim_params(cfg, cfg_dict)
-    env = parse_task(cfg, cfg_dict, sim_params)
+    env = parse_task(cfg, cfg_dict, sim_params) # This is the vec_env
 
     # Perform training
     ppo = process_ppo(env, cfg, cfg_dict, cfg.logdir, cfg.cptdir)

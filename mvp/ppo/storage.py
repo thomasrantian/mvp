@@ -19,7 +19,8 @@ class RolloutStorage:
         states_shape,
         actions_shape,
         device="cpu",
-        sampler="sequential"
+        sampler="sequential",
+        reward_mode = 'ground_truth',
     ):
 
         self.device = device
@@ -31,6 +32,8 @@ class RolloutStorage:
         self.rewards = torch.zeros(num_transitions_per_env, num_envs, 1, device=self.device)
         self.actions = torch.zeros(num_transitions_per_env, num_envs, *actions_shape, device=self.device)
         self.dones = torch.zeros(num_transitions_per_env, num_envs, 1, device=self.device).byte()
+        # Reward storage for the optimal transport reward
+        self.OT_rewards = torch.zeros(num_transitions_per_env, num_envs, 1, device=self.device)
 
         # For PPO
         self.actions_log_prob = torch.zeros(num_transitions_per_env, num_envs, 1, device=self.device)
@@ -45,6 +48,8 @@ class RolloutStorage:
 
         self.step = 0
 
+        self.reward_mode = reward_mode
+
     def add_transitions(self, observations, states, actions, rewards, dones, values, actions_log_prob, mu, sigma):
         if self.step >= self.num_transitions_per_env:
             raise AssertionError("Rollout buffer overflow")
@@ -56,7 +61,7 @@ class RolloutStorage:
         self.observations[self.step].copy_(observations)
         self.states[self.step].copy_(states)
         self.actions[self.step].copy_(actions)
-        self.rewards[self.step].copy_(rewards.view(-1, 1))
+        self.rewards[self.step].copy_(rewards.view(-1, 1)) # T x n_env x 1
         self.dones[self.step].copy_(dones.view(-1, 1))
         self.values[self.step].copy_(values)
         self.actions_log_prob[self.step].copy_(actions_log_prob.view(-1, 1))
@@ -64,6 +69,10 @@ class RolloutStorage:
         self.sigma[self.step].copy_(sigma)
 
         self.step += 1
+
+    def fill_ot_rewards(self, ot_rewards):
+        '''Fill the OT_rewards tensor with the given ot_rewards'''
+        self.OT_rewards.copy_(ot_rewards)
 
     def clear(self):
         self.step = 0
@@ -76,7 +85,10 @@ class RolloutStorage:
             else:
                 next_values = self.values[step + 1]
             next_is_not_terminal = 1.0 - self.dones[step].float()
-            delta = self.rewards[step] + next_is_not_terminal * gamma * next_values - self.values[step]
+            if self.reward_mode == 'OT':
+                delta = self.OT_rewards[step] + next_is_not_terminal * gamma * next_values - self.values[step]
+            else:
+                delta = self.rewards[step] + next_is_not_terminal * gamma * next_values - self.values[step]
             advantage = delta + next_is_not_terminal * gamma * lam * advantage
             self.returns[step] = advantage + self.values[step]
 
@@ -92,7 +104,11 @@ class RolloutStorage:
             (flat_dones.new_tensor([-1], dtype=torch.int64), flat_dones.nonzero(as_tuple=False)[:, 0])
         )
         trajectory_lengths = (done_indices[1:] - done_indices[:-1])
-        return trajectory_lengths.float().mean(), self.rewards.mean()
+        if self.reward_mode == 'OT':
+            reward_mean = self.OT_rewards.mean()
+        else:
+            reward_mean = self.rewards.mean()
+        return trajectory_lengths.float().mean(), reward_mean
 
     def mini_batch_generator(self, num_mini_batches):
         batch_size = self.num_envs * self.num_transitions_per_env

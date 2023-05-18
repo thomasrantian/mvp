@@ -3,7 +3,7 @@ name: FrankaPick
 env:
   numEnvs: 1
   envSpacing: 1.5
-  episodeLength: 60
+  episodeLength: 35
 
   object_pos_init: [0.5, 0.0]
   object_pos_delta: [0.1, 0.2]
@@ -19,7 +19,7 @@ env:
   cam:
     w: 298
     h: 224
-    fov: 65
+    fov: 50
     ss: 2
     loc_p: [0.04, 0.0, 0.045]
     loc_r: [180, -90.0, 0.0]

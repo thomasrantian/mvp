@@ -25,7 +25,7 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
         # remove the classifier
         if hasattr(self, "pre_logits"):
             del self.pre_logits
-        #del self.head
+        del self.head
 
 
 
@@ -92,7 +92,7 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
         _freeze_module(self.patch_embed)
         _freeze_module(self.blocks[:-1])
         #_freeze_module(self.norm)
-        _freeze_module(self.head)
+        #_freeze_module(self.head)
 
         trainable_params = []
         for name, p in self.named_parameters():
@@ -105,7 +105,7 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
     def freeze(self):
         self.pos_embed.requires_grad = False
         self.cls_token.requires_grad = False
-        #self.head.requires_grad = False
+
         def _freeze_module(m):
             for p in m.parameters():
                 p.requires_grad = False
@@ -113,7 +113,7 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
         _freeze_module(self.patch_embed)
         _freeze_module(self.blocks)
         _freeze_module(self.norm)
-        _freeze_module(self.head)
+        
         trainable_params = []
         for name, p in self.named_parameters():
             if p.requires_grad:

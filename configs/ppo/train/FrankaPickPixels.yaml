@@ -3,7 +3,7 @@ torch_deterministic: False
 
 encoder:
   name: vits-mae-hoi
-  pretrain_dir: "/tmp/pretrained"
+  pretrain_dir: "/home/thomastian/workspace/mvp_exp_data/mae_encoders"
   freeze: True
   emb_dim: 128
 

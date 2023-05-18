@@ -17,6 +17,12 @@ from pixmc.tasks.base.base_task import BaseTask
 from isaacgym import gymtorch
 from isaacgym import gymapi
 import cv2
+# Find the path to the parent directory of the folder containing this file.
+DIR_PATH = os.path.dirname(os.path.realpath(__file__))
+# exlucde the last folder
+DIR_PATH = os.path.dirname(DIR_PATH)
+DIR_PATH = os.path.dirname(DIR_PATH)
+DIR_PATH = os.path.dirname(DIR_PATH)
 
 class FrankaPick(BaseTask):
 
@@ -274,6 +280,7 @@ class FrankaPick(BaseTask):
             self.third_person_cam_tensors = []
             self.save_third_person_view_image = True
             self.third_person_cam_image_id = 0
+            self.visual_obs_buf = torch.zeros((self.num_envs, 3, self.im_size, self.im_size), device=self.device, dtype=torch.float)
         # self.enable_third_person_cam = False
         # self.third_person_cams = []
         # self.third_person_cam_tensors = []
@@ -328,8 +335,8 @@ class FrankaPick(BaseTask):
                 #     local_t, gymapi.FOLLOW_TRANSFORM
                 # )
                 # Manually set camera position
-                cam_pos = gymapi.Vec3(-0.2, 0.2, 0.8)
-                cam_target = gymapi.Vec3(0.0, 0.15, 0.75)
+                cam_pos = gymapi.Vec3(-0.2, 0.0, 0.8)
+                cam_target = gymapi.Vec3(0.0, 0.0, 0.75)
                 self.gym.set_camera_location(cam_handle, env_ptr, cam_pos, cam_target)
                 self.third_person_cams.append(cam_handle)
                 # Camera tensor
@@ -408,6 +415,10 @@ class FrankaPick(BaseTask):
             self.goal_dist_reward_scale, self.goal_bonus_reward_scale, self.action_penalty_scale,
             self.contact_forces, self.rigid_body_arm_inds, self.max_episode_length
         )
+    
+    def reset_all(self):
+        for i in range(self.num_envs):
+            self.reset([i])
 
     def reset(self, env_ids):
 
@@ -520,6 +531,16 @@ class FrankaPick(BaseTask):
             self.obs_buf[i] = self.cam_tensors[i][:, crop_l:crop_r, :3].permute(2, 0, 1).float() / 255.
             self.obs_buf[i] = (self.obs_buf[i] - self.im_mean) / self.im_std
         self.gym.end_access_image_tensors(self.sim)
+    
+    def compute_visual_observations(self):
+        self.gym.render_all_camera_sensors(self.sim)
+        self.gym.start_access_image_tensors(self.sim)
+        for i in range(self.num_envs):
+            crop_l = (self.cam_w - self.im_size) // 2
+            crop_r = crop_l + self.im_size
+            self.visual_obs_buf[i] = self.third_person_cam_tensors[i][:, crop_l:crop_r, :3].permute(2, 0, 1).float() / 255.
+            self.visual_obs_buf[i] = (self.visual_obs_buf[i] - self.im_mean) / self.im_std
+        self.gym.end_access_image_tensors(self.sim)
 
     def post_physics_step(self):
         self.progress_buf += 1
@@ -537,24 +558,29 @@ class FrankaPick(BaseTask):
         self.compute_robot_state()
         self.compute_observations()
         self.compute_reward(self.actions)
-        # Same third view camera image in env id 0
-        if self.save_third_person_view_image:
+        # Compute the third person view camera observations
+        self.compute_visual_observations()
+        # # Same third view camera image in env id 0
+        # if self.save_third_person_view_image:
             
-            self.gym.render_all_camera_sensors(self.sim)
-            self.gym.start_access_image_tensors(self.sim)
-            crop_l = (self.cam_w - self.im_size) // 2
-            crop_r = crop_l + self.im_size
-            image_tensor = self.third_person_cam_tensors[0][:, crop_l:crop_r, :3].permute(2, 0, 1).float() / 255
-            image_tensor = (image_tensor - self.im_mean) / self.im_std
-            self.gym.end_access_image_tensors(self.sim)
-            print(image_tensor.shape)
-            out_f = '/home/thomastian/workspace/mvp/mvp_exp_data/' + "%d.png" % self.third_person_cam_image_id
-            #self.gym.write_camera_image_to_file(self.sim, self.envs[0], self.third_person_cams[0], gymapi.IMAGE_COLOR, out_f)
-            ttt = image_tensor.cpu().numpy()
-            ttt = np.moveaxis(ttt, 0, -1) * 255
-            if self.third_person_cam_image_id > 0:
-                cv2.imwrite(out_f, ttt)
-            self.third_person_cam_image_id += 1
+        #     self.gym.render_all_camera_sensors(self.sim)
+        #     self.gym.start_access_image_tensors(self.sim)
+        #     crop_l = (self.cam_w - self.im_size) // 2
+        #     crop_r = crop_l + self.im_size
+        #     image_tensor = self.third_person_cam_tensors[0][:, crop_l:crop_r, :3].permute(2, 0, 1).float() / 255
+        #     image_tensor = (image_tensor - self.im_mean) / self.im_std
+        #     self.gym.end_access_image_tensors(self.sim)
+        #     #print(image_tensor.shape)
+        #     out_f = DIR_PATH + '/mvp_exp_data/rollout_images_save/' + "%d.png" % self.third_person_cam_image_id
+        #     # check if the folder exists
+        #     if not os.path.exists(DIR_PATH + '/mvp_exp_data/rollout_images_save/'):
+        #         os.makedirs(DIR_PATH + '/mvp_exp_data/rollout_images_save/')
+        #     #self.gym.write_camera_image_to_file(self.sim, self.envs[0], self.third_person_cams[0], gymapi.IMAGE_COLOR, out_f)
+        #     ttt = image_tensor.cpu().numpy()
+        #     ttt = np.moveaxis(ttt, 0, -1) * 255
+        #     if self.third_person_cam_image_id > 0:
+        #         cv2.imwrite(out_f, ttt)
+        #     self.third_person_cam_image_id += 1
 
 
 @torch.jit.script
@@ -605,7 +631,7 @@ def compute_franka_reward(
 
     # Goal reached
     goal_height = 0.8 - 0.4  # absolute goal height - table height
-    s = torch.where(successes < 10.0, torch.zeros_like(successes), successes)
+    s = torch.where(successes < 4.0, torch.zeros_like(successes), successes)
     successes = torch.where(og_d <= goal_height * 0.25, torch.ones_like(successes) + successes, s)
 
     # Object below table height
@@ -614,12 +640,23 @@ def compute_franka_reward(
 
     # Arm collision
     arm_collision = torch.any(torch.norm(contact_forces[:, arm_inds, :], dim=2) > 1.0, dim=1)
+    collision_penalty = arm_collision.int()
+    #print(arm_collision, collision_cost)
+    #rewards = rewards - 2 * collision_penalty
+    # if torch.any(arm_collision):
+    #     print('arm collision')
+    
+    # check which env has collision
+    #print(arm_collision)
+    #if torch.any(arm_collision):
+    #    print('arm collision')
+    #print(arm_collision)
     reset_buf = torch.where(arm_collision, torch.ones_like(reset_buf), reset_buf)
 
     # Max episode length exceeded
     reset_buf = torch.where(progress_buf >= max_episode_length - 1, torch.ones_like(reset_buf), reset_buf)
 
-    binary_s = torch.where(successes >= 10, torch.ones_like(successes), torch.zeros_like(successes))
+    binary_s = torch.where(successes >= 4, torch.ones_like(successes), torch.zeros_like(successes))
     successes = torch.where(reset_buf > 0, binary_s, successes)
 
     return rewards, reset_buf, successes

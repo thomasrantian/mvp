@@ -16,6 +16,7 @@ from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
 import random
+import cv2
 
 from extraction import *
 # MVP encoder config
@@ -44,8 +45,7 @@ class Encoder(nn.Module):
         model_func = _MODEL_FUNCS[model_name.split("-")[0]]
         img_size = 256 if "-256-" in model_name else 224
         pretrain_path = os.path.join(pretrain_dir, _MODELS[model_name])
-        self.backbone, gap_dim = model_func(
-            pretrain_path, img_size=img_size, num_classes=1)
+        self.backbone, gap_dim = model_func(pretrain_path, img_size=img_size)
         if freeze:
             self.backbone.freeze()
         self.freeze = freeze
@@ -242,3 +242,85 @@ def eval_batch(obs_enc, feature_aligner, data_input, data_labels, batch_size, al
             running_accuracy += compute_accuracy(outputs, labels)
             num_batch += 1
     return running_accuracy / num_batch
+
+
+
+
+def extract_frames_from_dir(data_dir, n_frames):
+    '''Extract one rollout images from the data_dir
+    output: T x 3 x 112 x 112'''
+    all_frames_in_demo = []
+    # Extract the frame
+    for frame_id in range(n_frames):
+        frame_path = os.path.join(data_dir, str(frame_id)) + '.png'
+        image_observation = Image.open(frame_path)
+        image_observation = np.asarray(image_observation)
+        image_observation = cv2.resize(image_observation, dsize=(224, 224), interpolation=cv2.INTER_CUBIC)
+        image_tensor = pixel_to_tensor(image_observation).squeeze() # 3 x 112 x 112 and normalized the pixel value
+        all_frames_in_demo.append(image_tensor)
+    # Stack all the frames in the demo
+    all_frames_in_demo = torch.stack(all_frames_in_demo, dim=0) # T x 3 x 112 x 112
+    #all_frames_in_demo = all_frames_in_demo[::3, :, :, :] # (T/3) x 112 x 112
+    return all_frames_in_demo
+
+
+
+def extract_data_from_dir(data_mode, data_dir, sequence_length):
+    '''Extract the data from the data_dir'''
+    '''Data mode can be equal or contrast'''
+    '''Output:  N_data x 3 x T x 3 x 112 x 112'''
+    # Find the total number of tripletd in the data_dir
+    total_num_triplets = len(os.listdir(data_dir))
+    data = []
+    
+    for i in range(total_num_triplets):
+        triplet_dir = data_dir + '/' + str(i) + '/'
+        if data_mode == 'contrastive':
+            positive_rollout_dir = triplet_dir + 'positive/'
+            negative_rollout_dir = triplet_dir + 'negative/'
+            neutral_rollout_dir = triplet_dir + 'neutral/'
+        if data_mode == 'equal_ranking':
+            positive_rollout_dir = triplet_dir + '0/'
+            negative_rollout_dir = triplet_dir + '1/'
+            neutral_rollout_dir = triplet_dir + '2/'
+        # Extract the positive rollout
+        positive_rollout = extract_frames_from_dir(positive_rollout_dir, sequence_length)
+        # Extract the negative rollout
+        negative_rollout = extract_frames_from_dir(negative_rollout_dir, sequence_length)
+        # Extract the neutral rollout
+        neutral_rollout = extract_frames_from_dir(neutral_rollout_dir, sequence_length)
+        # Stack the positive, negative and neutral rollouts
+        triplet_rollouts = [positive_rollout, negative_rollout, neutral_rollout]
+        triplet_rollouts = torch.stack(triplet_rollouts, dim=0) # 3 x T x 3 x 112 x 112
+        # Append the triplet rollouts to the data
+        data.append(triplet_rollouts)
+     
+    data = torch.stack(data, dim=0) # N_data x 3 x T x 3 x 112 x 112
+    return data
+
+def batch_cosine_distance(x, y):
+    C = torch.bmm(x, y.transpose(1, 2))
+    x_norm = torch.norm(x, p=2, dim=2)
+    y_norm = torch.norm(y, p=2, dim=2)
+    x_n = x_norm.unsqueeze(2)
+    y_n = y_norm.unsqueeze(2)
+    norms = torch.bmm(x_n, y_n.transpose(1, 2))
+    C = (1 - C / norms)
+    return C
+
+def cosine_distance(x, y):
+    C = torch.mm(x, y.T)
+    x_norm = torch.norm(x, p=2, dim=1)
+    y_norm = torch.norm(y, p=2, dim=1)
+    x_n = x_norm.unsqueeze(1)
+    y_n = y_norm.unsqueeze(1)
+    norms = torch.mm(x_n, y_n.T)
+    C = (1 - C / norms)
+    return C
+
+def euclidean_distance(x, y):
+    "Returns the matrix of $|x_i-y_j|^p$."
+    x_col = x.unsqueeze(1)
+    y_lin = y.unsqueeze(0)
+    c = torch.sqrt(torch.sum((torch.abs(x_col - y_lin)) ** 2, 2))
+    return c

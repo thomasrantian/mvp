@@ -20,7 +20,16 @@ from mvp.ppo import RolloutStorage
 
 import cv2
 import numpy as np
-
+import sys
+sys.path.append("...")
+from preference_representation_train.representation_alignment_util import *
+from ddn.ddn.pytorch.optimal_transport import sinkhorn, OptimalTransportLayer
+# Find the path to the parent directory of the folder containing this file.
+DIR_PATH = os.path.dirname(os.path.realpath(__file__))
+# exlucde the last folder
+DIR_PATH = os.path.dirname(DIR_PATH)
+DIR_PATH = os.path.dirname(DIR_PATH)
+DIR_PATH = os.path.dirname(DIR_PATH)
 class PPO:
 
     def __init__(
@@ -48,7 +57,8 @@ class PPO:
         is_testing=False,
         print_log=True,
         apply_reset=False,
-        num_gpus=1
+        num_gpus=1,
+        reward_type="ground_truth"
     ):
 
         if not isinstance(vec_env.observation_space, Space):
@@ -94,7 +104,8 @@ class PPO:
 
         self.storage = RolloutStorage(
             self.vec_env.num_envs, num_transitions_per_env, self.observation_space.shape,
-            self.state_space.shape, self.action_space.shape, self.device, sampler
+            self.state_space.shape, self.action_space.shape, self.device, sampler,
+            reward_type
         )
         self.optimizer = optim.Adam(self.actor_critic.parameters(), lr=learning_rate)
 
@@ -136,6 +147,44 @@ class PPO:
         # Save obs image and camera image flag
         self.save_camera_image = False
 
+        # Initialize and freeze the preference encoder
+        preference_encoder_cfg = {'name': 'vits-mae-hoi', 'pretrain_dir':
+               DIR_PATH + '/mvp_exp_data/mae_encoders', 'freeze': True, 'emb_dim': 128}
+        self.preference_encoder = Encoder(
+            model_name=preference_encoder_cfg["name"],
+            pretrain_dir=preference_encoder_cfg["pretrain_dir"],
+            freeze=preference_encoder_cfg["freeze"],
+            emb_dim=preference_encoder_cfg["emb_dim"],
+        ).cuda()
+        print('Loaded mvp encoder weight from {}'.format('TBD'))
+        # To do: Load the preference encoder weight here once it is ready
+        
+        # Initialize the sinkorn layer
+        self.sinkorn_layer = OptimalTransportLayer(gamma = 1).cuda()
+
+        # Extract the expert demos and compute the expert embeddings
+        self.rescale_ot_reward = True
+        self.rescale_factor_OT = 1.0
+        self.expert_demo_embs = self.get_expert_demo_embs( DIR_PATH + '/mvp_exp_data/behavior_train_data/franka_pick/', 6)
+
+    def get_expert_demo_embs(self, data_set_dir, n_demo_needed):
+        '''Get the expert demo embeddings from the data set dir.'''
+        all_demo_id_dir = os.listdir(data_set_dir)
+        all_demo_embs = []
+        n_demo_had = 0
+        current_demo_id_idx = 0
+        while n_demo_had < n_demo_needed:
+            demo_path = os.path.join(data_set_dir, all_demo_id_dir[current_demo_id_idx])
+            print('demo_path', demo_path)
+            current_demo = extract_frames_from_dir(demo_path, self.num_transitions_per_env).cuda() # T x 3 x 224 x 224
+            current_demo_embs,_ = self.preference_encoder(current_demo) # T x 128
+            # if self.use_feature_aligner:
+            #     current_demo_embs = self.feature_aligner(current_demo_embs.cuda()).detach().cpu() # 1 x T x 32
+            n_demo_had += 1 
+            current_demo_id_idx += 1      
+            all_demo_embs.append(current_demo_embs)
+        return all_demo_embs # a list of T x 32 cpu tensor
+
     def test(self, path):
         state_dict = torch.load(path)
         state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
@@ -174,8 +223,8 @@ class PPO:
                         current_states = self.vec_env.get_state()
                     # Compute the action
                     actions = self.actor_critic.act_inference(current_obs, current_states)
-                    # randomize the actions
-                    actions += torch.rand(actions.shape, device=self.device) * 0.6
+                    # randomize the actions TODO: Why we randomize the actions?
+                    #actions += torch.rand(actions.shape, device=self.device) * 0.6
                     # Step the vec_environment
                     next_obs, rews, dones, infos = self.vec_env.step(actions)
                     next_states = self.vec_env.get_state()
@@ -220,10 +269,14 @@ class PPO:
             reward_sum = []
             episode_length = []
             successes = []
+            # Pre-allocate the visual observation history   # n_env x max_step x 3, 224, 224
 
             for it in range(self.current_learning_iteration, num_learning_iterations):
                 start = time.time()
-
+                rollout_visual_obs_hist = []
+                self.vec_env.task.reset_all()
+                current_obs = self.vec_env.reset()
+                current_states = self.vec_env.get_state()
                 # Rollout
                 for _ in range(self.num_transitions_per_env):
                     if self.apply_reset:
@@ -233,7 +286,7 @@ class PPO:
                     actions, actions_log_prob, values, mu, sigma, current_obs_feats = \
                         self.actor_critic.act(current_obs, current_states)
                     # Step the vec_environment
-                    next_obs, rews, dones, infos = self.vec_env.step(actions)
+                    next_obs, rews, dones, infos = self.vec_env.step(actions) # next_obs is from the obs_buf
                     next_states = self.vec_env.get_state()
                     # Record the transition
                     obs_in = current_obs_feats if current_obs_feats is not None else current_obs
@@ -253,7 +306,67 @@ class PPO:
                         successes.extend(infos["successes"][new_ids][:, 0].cpu().numpy().tolist())
                         cur_reward_sum[new_ids] = 0
                         cur_episode_length[new_ids] = 0
+                    # Get the images from the third view camera
+                    image_obs = self.vec_env.get_visual_obs() # (num_envs, 3, 224, 224)
+                    rollout_visual_obs_hist.append(image_obs)                
+                #After one roll-out, we compute the OT reward, and modify the storage                            
+                # 1) Pass the rollout image observations to the preference encoder
+                # convert the rollout_visual_obs_hist to (T * num_envs) * 3 * 224 * 224
+                rollout_visual_obs_hist = torch.cat(rollout_visual_obs_hist, dim=0)
+                #print(rollout_visual_obs_hist.shape)
+                # pass the rollout_visual_obs_hist to the preference encoder
+                rollout_visual_emd_hist, _ = self.preference_encoder(rollout_visual_obs_hist) # (T * num_envs) * 128
+                # Convert the rollout_visual_emd_hist back to T * num_envs * 128
+                rollout_visual_emd_hist = rollout_visual_emd_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, -1)
+                # Convert the rollout_visual_emd_hist back to num_envs * T * 128
+                rollout_visual_emd_hist = rollout_visual_emd_hist.transpose(0, 1)
+                #print(rollout_visual_emd_hist.shape)
+                
+                # 2) Compute the OT reward To do: Use batch computation to speed up 
+                # for each environment, we compute the OT reward using the expert demonstration embedings
+                batch_ot_reward = []
+                for env_id in range(self.vec_env.num_envs):
+                    current_env_rollout_visual_emd_hist = rollout_visual_emd_hist[env_id] # T * 128
+                    all_ot_reward = []
+                    scores_list = []
+                    # Find the closest expert demonstration embeding and use it to compute the OT reward
+                    for exp_demo in self.expert_demo_embs:
+                        cost_matrix = cosine_distance(current_env_rollout_visual_emd_hist, exp_demo)
+                        transport_plan = self.sinkorn_layer(cost_matrix)
+                        if self.rescale_ot_reward:
+                            # We compute a rescale factor after the first episode. [Copied from the watch and teach paper]
+                            self.rescale_factor_OT  = self.rescale_factor_OT  / np.abs(np.sum(torch.diag(torch.mm(transport_plan, cost_matrix.T)).detach().cpu().numpy())) * 10
+                            self.rescale_ot_reward = False
 
+                        ot_reward = -self.rescale_factor_OT * torch.diag(torch.mm(transport_plan, cost_matrix.T))
+                        all_ot_reward.append(ot_reward)
+                        scores_list.append(np.sum(ot_reward.detach().cpu().numpy()))
+                    closest_demo_index = np.argmax(scores_list)
+                    current_env_ot_reward = all_ot_reward[closest_demo_index]
+                    batch_ot_reward.append(current_env_ot_reward)
+                batch_ot_reward = torch.stack(batch_ot_reward, dim=0).unsqueeze(2) # B x T x 1
+                batch_ot_reward = batch_ot_reward.transpose(0, 1) # T x B x 1
+                
+                #To do: use the batch computation to speed up
+                # batch_cost_matrix_agent_expert =  batch_cosine_distance(rollout_visual_emd_hist, rollout_visual_emd_hist) 
+                # batch_transport_plan_agent_expert = self.sinkorn_layer(batch_cost_matrix_agent_expert)
+                # temp = torch.unbind(torch.bmm(batch_transport_plan_agent_expert, batch_cost_matrix_agent_expert.transpose(1, 2)), dim=0)
+                # batch_ot_transport_cost = torch.block_diag(*temp) # (BxT) x (BxT)
+                # batch_ot_reward = torch.diag(batch_ot_transport_cost).view(self.vec_env.num_envs, self.num_transitions_per_env) # B x T
+                # if self.rescale_ot_reward:
+                #     # We compute a rescale factor after the first episode. [Copied from the watch and teach paper]
+                #     # get the distance by summing batch_ot_reward along the 1st dimension
+                #     batch_ot_distance_sum = torch.sum(batch_ot_reward, dim=1) # B
+                #     # get the average distance
+                #     batch_ot_distance_avg = torch.mean(batch_ot_distance_sum) # 1
+                #     self.rescale_factor_OT  = self.rescale_factor_OT  / np.abs(batch_ot_distance_avg.detach().cpu().numpy()) * 10
+                #     self.rescale_ot_reward = False
+                # batch_ot_reward = -self.rescale_factor_OT * torch.diag(batch_ot_transport_cost).view(self.vec_env.num_envs, self.num_transitions_per_env, 1) # B x T
+                # # Reverse the first and second dimension
+                # batch_ot_reward = batch_ot_reward.transpose(0, 1) # T x B x 1
+                
+                # # 3) Modify the storage
+                self.storage.fill_ot_rewards(batch_ot_reward)            
                 if self.print_log:
                     rewbuffer.extend(reward_sum)
                     lenbuffer.extend(episode_length)
@@ -288,11 +401,42 @@ class PPO:
                 # Use an explicit sync point since we are not syncing stats yet
                 if self.num_gpus > 1:
                     torch.distributed.barrier()
-
+                # Save train rollouts (images, ground truth rewards)
+                if it % 5 == 0:
+                    self.save_rolloutdata(rollout_visual_obs_hist)
+            
             if self.print_log:
                 self.save(os.path.join(self.log_dir, 'model_{}.pt'.format(num_learning_iterations)))
                 self.writer.close()
-
+    
+    def save_rolloutdata(self, rollout_visual_obs_hist):
+        # define the rollout save folder using the rollout_save_id
+        # rollout_visual_obs_hist: (T * num_envs) * 3 * 224 * 224
+        # Convert the rollout_visual_obs_hist back to T * num_envs * 3 * 224 * 224
+        rollout_visual_obs_hist = rollout_visual_obs_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, 3, 224, 224)
+        rollout_save_folder = self.log_dir + "/train_sample/"
+        if not os.path.exists(rollout_save_folder):
+            os.makedirs(rollout_save_folder)
+        # find the total number of files in the folder
+        num_files = len(os.listdir(rollout_save_folder))
+        rollout_save_folder = rollout_save_folder + "%d/" % num_files
+        if not os.path.exists(rollout_save_folder):
+            os.makedirs(rollout_save_folder)
+        # for simplicity, we only save the first env
+        first_env_reward = []
+        for t in range(self.num_transitions_per_env):
+            out_f = rollout_save_folder + "%d.png" % t
+            image_tensor = rollout_visual_obs_hist[t,0,:,:,:].cpu().detach().numpy()
+            image_tensor = np.moveaxis(image_tensor, 0, -1) * 255
+            cv2.imwrite(out_f, image_tensor)
+            first_env_reward.append(self.storage.rewards[t, 0, 0].cpu().detach().numpy())
+        # save the ground first_env_reward as a numpy array
+        first_env_reward = np.array(first_env_reward)
+        np.save(rollout_save_folder + "true_dense_reward_hist.npy", first_env_reward)
+        # save the sum reward
+        np.save(rollout_save_folder + "sum_true_dense_reward.npy", np.sum(first_env_reward))
+        
+    
     def log(
         self, it, num_learning_iterations, collection_time, learn_time, mean_value_loss, mean_surrogate_loss,
         mean_trajectory_length, mean_reward, rewbuffer_mean, lenbuffer_mean, successbuffer_mean, width=80, pad=35

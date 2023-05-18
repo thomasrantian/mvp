@@ -203,12 +203,13 @@ def process_ppo(env, cfg, cfg_dict, logdir, cptdir):
         encoder_cfg=cfg_dict["train"].get("encoder", None),
         policy_cfg=cfg_dict["train"]["policy"],
         device=env.rl_device,
-        sampler=learn_cfg.get("sampler", 'sequential'),
+        sampler=learn_cfg.get("sampler", 'random'),
         log_dir=logdir,
         is_testing=is_testing,
         print_log=learn_cfg["print_log"],
         apply_reset=False,
-        num_gpus=cfg.num_gpus
+        num_gpus=cfg.num_gpus,
+        reward_type=cfg_dict["train"]["learn"]["reward_type"],
     )
 
     # TODO: improve checkpointing and avoid overwriting logs
