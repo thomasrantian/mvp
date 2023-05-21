@@ -18,7 +18,7 @@ from torch.autograd import Variable
 import random
 import cv2
 
-from extraction import *
+#from extraction import *
 
 # define some constants used in the code
 w = 224

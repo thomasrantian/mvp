@@ -157,7 +157,7 @@ class PPO:
             emb_dim=preference_encoder_cfg["emb_dim"],
         ).cuda()
         # load the pretrained weight
-        self.preference_encoder.load_state_dict(torch.load('frankapick_obs_encoder.pt'))
+        #self.preference_encoder.load_state_dict(torch.load('frankapick_obs_encoder.pt'))
         
         print('Loaded mvp encoder weight from {}'.format('TBD'))
         # To do: Load the preference encoder weight here once it is ready

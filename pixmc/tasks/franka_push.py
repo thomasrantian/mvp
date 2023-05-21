@@ -268,10 +268,10 @@ class FrankaPush(BaseTask):
         table_start_pose.p = gymapi.Vec3(0.5, 0.0, 0.5 * table_dims.z)
 
         avoidance_box_start_pose = gymapi.Transform()
-        avoidance_box_start_pose.p = gymapi.Vec3(0.45, 0, table_dims.z + 0.01)
+        avoidance_box_start_pose.p = gymapi.Vec3(0.42, 0, table_dims.z + 0.01)
         self.avoidance_box_start_position = avoidance_box_start_pose.p
         
-        self.goal_y = 0.35
+        self.goal_y = 0.4
 
         object_start_pose = gymapi.Transform()
         object_start_pose.p = gymapi.Vec3(0.2, 0.0, table_dims.z + 0.5 * self.object_size) # this will be overwritten
@@ -540,7 +540,7 @@ class FrankaPush(BaseTask):
         temp = torch.tensor([self.avoidance_box_start_position.x, 0, 0.4], device=self.device)
         # expamd it to n_envs x 3
         temp = temp.expand(self.object_pos.shape[0], 3)
-        self.in_collision[:] = torch.norm(self.object_pos - temp, dim=1).unsqueeze(1) < 1.414 * self.avoidance_box_size / 2. + self.object_size / 2.
+        self.in_collision[:] = torch.norm(self.object_pos - temp, dim=1).unsqueeze(1) < 1.414 * self.avoidance_box_size / 2. + self.object_size / 2. + 0.0
         # do a or operation betwwen in_collision and self.collision_tracker
         self.collision_tracker[:] = self.collision_tracker + self.in_collision
 
