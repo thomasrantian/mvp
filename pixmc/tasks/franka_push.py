@@ -105,8 +105,8 @@ class FrankaPush(BaseTask):
 
         # Default franka dof pos
         self.franka_default_dof_pos = to_torch(
-            [1.157, -1.066, -0.155, -2.239, -1.841, 1.003, 0.469, 0.001, 0.001], device=self.device
-            #[1.1577, -0.7493, -0.6103, -2.2912, -1.4310,  1.5158,  0.1934,  0.0400, 0.0400], device=self.device
+            #[1.157, -1.066, -0.155, -2.239, -1.841, 1.003, 0.469, 0.001, 0.001], device=self.device
+            [1.1413, -0.7979, -0.4558, -2.3118, -1.6911,  1.2986,  0.5819,  0.1, 0.1], device=self.device
         )
 
         # Dof state slices
@@ -365,8 +365,8 @@ class FrankaPush(BaseTask):
                 #     local_t, gymapi.FOLLOW_TRANSFORM
                 # )
                 # Manually set camera position
-                cam_pos = gymapi.Vec3(0.15, 0.0, 1.2)
-                cam_target = gymapi.Vec3(0.9, 0.0, -1.5)
+                cam_pos = gymapi.Vec3(0.5, 0.0, 1.2)
+                cam_target = gymapi.Vec3(0.6, 0.0, -1.5)
                 self.gym.set_camera_location(cam_handle, env_ptr, cam_pos, cam_target)
                 self.third_person_cams.append(cam_handle)
                 # Camera tensor
