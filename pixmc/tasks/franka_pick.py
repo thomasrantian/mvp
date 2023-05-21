@@ -538,8 +538,8 @@ class FrankaPick(BaseTask):
         for i in range(self.num_envs):
             crop_l = (self.cam_w - self.im_size) // 2
             crop_r = crop_l + self.im_size
-            self.visual_obs_buf[i] = self.third_person_cam_tensors[i][:, crop_l:crop_r, :3].permute(2, 0, 1).float() / 255.
-            self.visual_obs_buf[i] = (self.visual_obs_buf[i] - self.im_mean) / self.im_std
+            self.visual_obs_buf[i] = self.third_person_cam_tensors[i][:, crop_l:crop_r, :3].permute(2, 0, 1).float()
+            #self.visual_obs_buf[i] = (self.visual_obs_buf[i] - self.im_mean) / self.im_std
         self.gym.end_access_image_tensors(self.sim)
 
     def post_physics_step(self):

@@ -84,14 +84,14 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
     # Only make the last layer trainable
     def partial_freeze(self):
         self.pos_embed.requires_grad = False
-        self.cls_token.requires_grad = False
+        self.cls_token.requires_grad = True
         def _freeze_module(m):
             for p in m.parameters():
                 p.requires_grad = False
 
         _freeze_module(self.patch_embed)
         _freeze_module(self.blocks[:-1])
-        #_freeze_module(self.norm)
+        _freeze_module(self.norm)
         #_freeze_module(self.head)
 
         trainable_params = []

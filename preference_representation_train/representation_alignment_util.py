@@ -24,6 +24,9 @@ from extraction import *
 w = 224
 h = 224
 
+im_mean = torch.tensor([0.485, 0.456, 0.406], dtype=torch.float, device='cpu').view(3, 1, 1)
+im_std = torch.tensor([0.229, 0.224, 0.225], dtype=torch.float, device='cpu').view(3, 1, 1)
+
 # MVP encoder config
 _MODELS = {
     "vits-mae-hoi": "mae_pretrain_hoi_vit_small.pth",
@@ -154,10 +157,11 @@ def get_image_encoder_ave_attention(obs_enc, x):
 
 def pixel_to_tensor(arr):
     '''Converts a image numpy array to a torch tensor.'''
-    arr = torch.from_numpy(arr).permute(2, 0, 1).float()[None, None, Ellipsis]
+    arr = torch.from_numpy(arr).permute(2, 0, 1)
     arr = arr / 255.0
-    arr = arr
-    return arr
+    # subtract the mean and divide by the standard deviation
+    arr = (arr - im_mean) / im_std
+    return arr.float()[None, None, Ellipsis]
 
 
 def prepare_train_data():
@@ -269,9 +273,13 @@ def extract_frames_from_dir(data_dir, n_frames):
     #all_frames_in_demo = all_frames_in_demo[::3, :, :, :] # (T/3) x 112 x 112
     return all_frames_in_demo
 
+def get_batch_data(sequence_length, contrastive_ranking_data_dir, contrastive_indexs, equal_ranking_data_dir, equal_indexs):
+    """Return the batch data given the indexs"""
+    contrastive_ranking_data = extract_data_from_dir('contrastive', contrastive_ranking_data_dir, sequence_length, contrastive_indexs).cuda()
+    equal_ranking_data = extract_data_from_dir('equal_ranking', equal_ranking_data_dir, sequence_length, equal_indexs).cuda()
+    return contrastive_ranking_data, equal_ranking_data
 
-
-def extract_data_from_dir(data_mode, data_dir, sequence_length):
+def extract_data_from_dir(data_mode, data_dir, sequence_length, indexs):
     '''Extract the data from the data_dir'''
     '''Data mode can be equal or contrast'''
     '''Output:  N_data x 3 x T x 3 x 112 x 112'''
@@ -279,7 +287,7 @@ def extract_data_from_dir(data_mode, data_dir, sequence_length):
     total_num_triplets = len(os.listdir(data_dir))
     data = []
     
-    for i in range(50):
+    for i in indexs:
         triplet_dir = data_dir + '/' + str(i) + '/'
         if data_mode == 'contrastive':
             positive_rollout_dir = triplet_dir + 'positive/'

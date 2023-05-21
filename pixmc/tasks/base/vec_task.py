@@ -127,7 +127,7 @@ class VecTaskPython(VecTask):
         '''Return the images captured by the third person camera.
         Output shape: (num_envs, 3, 224, 224)
         '''
-        return torch.clamp(self.task.visual_obs_buf, -self.clip_obs, self.clip_obs).to(self.rl_device)
+        return torch.clamp(self.task.visual_obs_buf, -1000, 1000).to(self.rl_device)
 
     def step(self, actions):
         actions_tensor = torch.clamp(actions, -self.clip_actions, self.clip_actions)
@@ -143,6 +143,6 @@ class VecTaskPython(VecTask):
         actions = 0.01 * (1 - 2 * torch.rand([self.task.num_envs, self.task.num_actions], dtype=torch.float32, device=self.rl_device))
 
         # step the simulator
-        self.task.step(actions)
+        self.task.step(0 * actions)
 
         return torch.clamp(self.task.obs_buf, -self.clip_obs, self.clip_obs).to(self.rl_device)

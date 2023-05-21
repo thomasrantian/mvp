@@ -80,7 +80,7 @@ class PPO:
         self.schedule = schedule
         self.step_size_init = learning_rate
         self.step_size = learning_rate
-
+        self.reward_type = reward_type
         # PPO components
         self.vec_env = vec_env
         self.actor_critic = actor_critic_class(
@@ -156,6 +156,9 @@ class PPO:
             freeze=preference_encoder_cfg["freeze"],
             emb_dim=preference_encoder_cfg["emb_dim"],
         ).cuda()
+        # load the pretrained weight
+        self.preference_encoder.load_state_dict(torch.load('frankapick_obs_encoder.pt'))
+        
         print('Loaded mvp encoder weight from {}'.format('TBD'))
         # To do: Load the preference encoder weight here once it is ready
         
@@ -165,7 +168,7 @@ class PPO:
         # Extract the expert demos and compute the expert embeddings
         self.rescale_ot_reward = True
         self.rescale_factor_OT = 1.0
-        self.expert_demo_embs = self.get_expert_demo_embs( DIR_PATH + '/mvp_exp_data/behavior_train_data/franka_pick/', 6)
+        self.expert_demo_embs = self.get_expert_demo_embs( DIR_PATH + '/mvp_exp_data/behavior_train_data/franka_pick/', 5)
 
     def get_expert_demo_embs(self, data_set_dir, n_demo_needed):
         '''Get the expert demo embeddings from the data set dir.'''
@@ -204,7 +207,7 @@ class PPO:
         current_states = self.vec_env.get_state()
 
         if self.is_testing:
-            maxlen = 0
+            maxlen = 10000
             cur_reward_sum = torch.zeros(self.vec_env.num_envs, dtype=torch.float, device=self.device)
             cur_episode_length = torch.zeros(self.vec_env.num_envs, dtype=torch.float, device=self.device)
 
@@ -223,11 +226,14 @@ class PPO:
                         current_states = self.vec_env.get_state()
                     # Compute the action
                     actions = self.actor_critic.act_inference(current_obs, current_states)
+                    # set the last two actions to be zero
+                    #actions[:, -2:] = 0
                     # randomize the actions TODO: Why we randomize the actions?
                     #actions += torch.rand(actions.shape, device=self.device) * 0.6
                     # Step the vec_environment
                     next_obs, rews, dones, infos = self.vec_env.step(actions)
                     next_states = self.vec_env.get_state()
+                    #print(self.vec_env.task.franka_dof_pos)
                     current_obs.copy_(next_obs)
                     current_states.copy_(next_states)
 
@@ -270,7 +276,7 @@ class PPO:
             episode_length = []
             successes = []
             # Pre-allocate the visual observation history   # n_env x max_step x 3, 224, 224
-
+            mean_batch_distance_expert_hist = []
             for it in range(self.current_learning_iteration, num_learning_iterations):
                 start = time.time()
                 rollout_visual_obs_hist = []
@@ -286,6 +292,7 @@ class PPO:
                     actions, actions_log_prob, values, mu, sigma, current_obs_feats = \
                         self.actor_critic.act(current_obs, current_states)
                     # Step the vec_environment
+                    #actions[:, -2:] *= 0.5
                     next_obs, rews, dones, infos = self.vec_env.step(actions) # next_obs is from the obs_buf
                     next_states = self.vec_env.get_state()
                     # Record the transition
@@ -313,60 +320,70 @@ class PPO:
                 # 1) Pass the rollout image observations to the preference encoder
                 # convert the rollout_visual_obs_hist to (T * num_envs) * 3 * 224 * 224
                 rollout_visual_obs_hist = torch.cat(rollout_visual_obs_hist, dim=0)
-                #print(rollout_visual_obs_hist.shape)
-                # pass the rollout_visual_obs_hist to the preference encoder
-                rollout_visual_emd_hist, _ = self.preference_encoder(rollout_visual_obs_hist) # (T * num_envs) * 128
-                # Convert the rollout_visual_emd_hist back to T * num_envs * 128
-                rollout_visual_emd_hist = rollout_visual_emd_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, -1)
-                # Convert the rollout_visual_emd_hist back to num_envs * T * 128
-                rollout_visual_emd_hist = rollout_visual_emd_hist.transpose(0, 1)
-                #print(rollout_visual_emd_hist.shape)
                 
-                # 2) Compute the OT reward To do: Use batch computation to speed up 
-                # for each environment, we compute the OT reward using the expert demonstration embedings
-                batch_ot_reward = []
-                for env_id in range(self.vec_env.num_envs):
-                    current_env_rollout_visual_emd_hist = rollout_visual_emd_hist[env_id] # T * 128
-                    all_ot_reward = []
-                    scores_list = []
-                    # Find the closest expert demonstration embeding and use it to compute the OT reward
-                    for exp_demo in self.expert_demo_embs:
-                        cost_matrix = cosine_distance(current_env_rollout_visual_emd_hist, exp_demo)
-                        transport_plan = self.sinkorn_layer(cost_matrix)
-                        if self.rescale_ot_reward:
-                            # We compute a rescale factor after the first episode. [Copied from the watch and teach paper]
-                            self.rescale_factor_OT  = self.rescale_factor_OT  / np.abs(np.sum(torch.diag(torch.mm(transport_plan, cost_matrix.T)).detach().cpu().numpy())) * 10
-                            self.rescale_ot_reward = False
+                if self.reward_type == 'OT':
+                
+                    # we normilize the rollout_visual_obs_hist substracting the mean and divided by the std
+                    rollout_visual_obs_hist_normed = (rollout_visual_obs_hist / 255. - self.vec_env.task.im_mean) / self.vec_env.task.im_std
+                    #print(rollout_visual_obs_hist.shape)
+                    # pass the rollout_visual_obs_hist to the preference encoder
+                    rollout_visual_emd_hist, _ = self.preference_encoder(rollout_visual_obs_hist_normed) # (T * num_envs) * 128
+                    # Convert the rollout_visual_emd_hist back to T * num_envs * 128
+                    rollout_visual_emd_hist = rollout_visual_emd_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, -1)
+                    # Convert the rollout_visual_emd_hist back to num_envs * T * 128
+                    rollout_visual_emd_hist = rollout_visual_emd_hist.transpose(0, 1)
+                    #print(rollout_visual_emd_hist.shape)
+                    
+                    # 2) Compute the OT reward To do: Use batch computation to speed up 
+                    # for each environment, we compute the OT reward using the expert demonstration embedings
+                    batch_ot_reward = []
+                    for env_id in range(self.vec_env.num_envs):
+                        current_env_rollout_visual_emd_hist = rollout_visual_emd_hist[env_id] # T * 128
+                        all_ot_reward = []
+                        scores_list = []
+                        # Find the closest expert demonstration embeding and use it to compute the OT reward
+                        for exp_demo in self.expert_demo_embs:
+                            cost_matrix = cosine_distance(current_env_rollout_visual_emd_hist, exp_demo)
+                            transport_plan = self.sinkorn_layer(cost_matrix)
+                            if self.rescale_ot_reward:
+                                # We compute a rescale factor after the first episode. [Copied from the watch and teach paper]
+                                self.rescale_factor_OT  = self.rescale_factor_OT  / np.abs(np.sum(torch.diag(torch.mm(transport_plan, cost_matrix.T)).detach().cpu().numpy())) * 10
+                                self.rescale_ot_reward = False
 
-                        ot_reward = -self.rescale_factor_OT * torch.diag(torch.mm(transport_plan, cost_matrix.T))
-                        all_ot_reward.append(ot_reward)
-                        scores_list.append(np.sum(ot_reward.detach().cpu().numpy()))
-                    closest_demo_index = np.argmax(scores_list)
-                    current_env_ot_reward = all_ot_reward[closest_demo_index]
-                    batch_ot_reward.append(current_env_ot_reward)
-                batch_ot_reward = torch.stack(batch_ot_reward, dim=0).unsqueeze(2) # B x T x 1
-                batch_ot_reward = batch_ot_reward.transpose(0, 1) # T x B x 1
-                
-                #To do: use the batch computation to speed up
-                # batch_cost_matrix_agent_expert =  batch_cosine_distance(rollout_visual_emd_hist, rollout_visual_emd_hist) 
-                # batch_transport_plan_agent_expert = self.sinkorn_layer(batch_cost_matrix_agent_expert)
-                # temp = torch.unbind(torch.bmm(batch_transport_plan_agent_expert, batch_cost_matrix_agent_expert.transpose(1, 2)), dim=0)
-                # batch_ot_transport_cost = torch.block_diag(*temp) # (BxT) x (BxT)
-                # batch_ot_reward = torch.diag(batch_ot_transport_cost).view(self.vec_env.num_envs, self.num_transitions_per_env) # B x T
-                # if self.rescale_ot_reward:
-                #     # We compute a rescale factor after the first episode. [Copied from the watch and teach paper]
-                #     # get the distance by summing batch_ot_reward along the 1st dimension
-                #     batch_ot_distance_sum = torch.sum(batch_ot_reward, dim=1) # B
-                #     # get the average distance
-                #     batch_ot_distance_avg = torch.mean(batch_ot_distance_sum) # 1
-                #     self.rescale_factor_OT  = self.rescale_factor_OT  / np.abs(batch_ot_distance_avg.detach().cpu().numpy()) * 10
-                #     self.rescale_ot_reward = False
-                # batch_ot_reward = -self.rescale_factor_OT * torch.diag(batch_ot_transport_cost).view(self.vec_env.num_envs, self.num_transitions_per_env, 1) # B x T
-                # # Reverse the first and second dimension
-                # batch_ot_reward = batch_ot_reward.transpose(0, 1) # T x B x 1
-                
-                # # 3) Modify the storage
-                self.storage.fill_ot_rewards(batch_ot_reward)            
+                            ot_reward = -self.rescale_factor_OT * torch.diag(torch.mm(transport_plan, cost_matrix.T))
+                            all_ot_reward.append(ot_reward)
+                            scores_list.append(np.sum(ot_reward.detach().cpu().numpy()))
+                        closest_demo_index = np.argmax(scores_list)
+                        current_env_ot_reward = all_ot_reward[closest_demo_index]
+                        batch_ot_reward.append(current_env_ot_reward)
+                    batch_ot_reward = torch.stack(batch_ot_reward, dim=0).unsqueeze(2) # B x T x 1
+                    batch_distance_expert = torch.sum(batch_ot_reward, dim=1) # B x 1
+                    batch_ot_reward = batch_ot_reward.transpose(0, 1) # T x B x 1
+                    # compute the mean of batch_distance_expert
+                    mean_batch_distance_expert = torch.mean(batch_distance_expert)
+                    # covert to numpy and append to mean_batch_distance_expert_hist
+                    mean_batch_distance_expert_hist.append(mean_batch_distance_expert.detach().cpu().numpy())
+
+                    #To do: use the batch computation to speed up
+                    # batch_cost_matrix_agent_expert =  batch_cosine_distance(rollout_visual_emd_hist, rollout_visual_emd_hist) 
+                    # batch_transport_plan_agent_expert = self.sinkorn_layer(batch_cost_matrix_agent_expert)
+                    # temp = torch.unbind(torch.bmm(batch_transport_plan_agent_expert, batch_cost_matrix_agent_expert.transpose(1, 2)), dim=0)
+                    # batch_ot_transport_cost = torch.block_diag(*temp) # (BxT) x (BxT)
+                    # batch_ot_reward = torch.diag(batch_ot_transport_cost).view(self.vec_env.num_envs, self.num_transitions_per_env) # B x T
+                    # if self.rescale_ot_reward:
+                    #     # We compute a rescale factor after the first episode. [Copied from the watch and teach paper]
+                    #     # get the distance by summing batch_ot_reward along the 1st dimension
+                    #     batch_ot_distance_sum = torch.sum(batch_ot_reward, dim=1) # B
+                    #     # get the average distance
+                    #     batch_ot_distance_avg = torch.mean(batch_ot_distance_sum) # 1
+                    #     self.rescale_factor_OT  = self.rescale_factor_OT  / np.abs(batch_ot_distance_avg.detach().cpu().numpy()) * 10
+                    #     self.rescale_ot_reward = False
+                    # batch_ot_reward = -self.rescale_factor_OT * torch.diag(batch_ot_transport_cost).view(self.vec_env.num_envs, self.num_transitions_per_env, 1) # B x T
+                    # # Reverse the first and second dimension
+                    # batch_ot_reward = batch_ot_reward.transpose(0, 1) # T x B x 1
+                    
+                    # # 3) Modify the storage
+                    self.storage.fill_ot_rewards(batch_ot_reward)            
                 if self.print_log:
                     rewbuffer.extend(reward_sum)
                     lenbuffer.extend(episode_length)
@@ -391,9 +408,13 @@ class PPO:
                     rewbuffer_mean = statistics.mean(rewbuffer) if rewbuffer_len > 0 else 0
                     lenbuffer_mean = statistics.mean(lenbuffer) if rewbuffer_len > 0 else 0
                     successbuffer_mean = statistics.mean(successbuffer) if rewbuffer_len > 0 else 0
+                    if self.reward_type == 'OT':
+                        mean_dist_2_expert = np.mean(mean_batch_distance_expert_hist)
+                    else:
+                        mean_dist_2_expert = 0
                     self.log(
                         it, num_learning_iterations, collection_time, learn_time, mean_value_loss, mean_surrogate_loss,
-                        mean_trajectory_length, mean_reward, rewbuffer_mean, lenbuffer_mean, successbuffer_mean
+                        mean_trajectory_length, mean_reward, rewbuffer_mean, lenbuffer_mean, successbuffer_mean, mean_dist_2_expert
                     )
                 if self.print_log and it % log_interval == 0:
                     self.save(os.path.join(self.log_dir, 'model_{}.pt'.format(it)))
@@ -402,8 +423,8 @@ class PPO:
                 if self.num_gpus > 1:
                     torch.distributed.barrier()
                 # Save train rollouts (images, ground truth rewards)
-                if it % 5 == 0:
-                    self.save_rolloutdata(rollout_visual_obs_hist)
+                # if it % 5 == 0:
+                self.save_rolloutdata(rollout_visual_obs_hist)
             
             if self.print_log:
                 self.save(os.path.join(self.log_dir, 'model_{}.pt'.format(num_learning_iterations)))
@@ -424,22 +445,29 @@ class PPO:
             os.makedirs(rollout_save_folder)
         # for simplicity, we only save the first env
         first_env_reward = []
+        first_env_ot_reward = []
         for t in range(self.num_transitions_per_env):
             out_f = rollout_save_folder + "%d.png" % t
             image_tensor = rollout_visual_obs_hist[t,0,:,:,:].cpu().detach().numpy()
-            image_tensor = np.moveaxis(image_tensor, 0, -1) * 255
+            image_tensor = np.moveaxis(image_tensor, 0, -1)
             cv2.imwrite(out_f, image_tensor)
             first_env_reward.append(self.storage.rewards[t, 0, 0].cpu().detach().numpy())
+            if self.reward_type == 'OT':
+                first_env_ot_reward.append(self.storage.OT_rewards[t, 0, 0].cpu().detach().numpy())
         # save the ground first_env_reward as a numpy array
         first_env_reward = np.array(first_env_reward)
         np.save(rollout_save_folder + "true_dense_reward_hist.npy", first_env_reward)
         # save the sum reward
         np.save(rollout_save_folder + "sum_true_dense_reward.npy", np.sum(first_env_reward))
-        
+        # save the sum ot reward
+        if self.reward_type == 'OT':
+            first_env_ot_reward = np.array(first_env_ot_reward)
+            np.save(rollout_save_folder + "sum_ot_reward.npy", np.sum(first_env_ot_reward)/self.rescale_factor_OT)
+            
     
     def log(
         self, it, num_learning_iterations, collection_time, learn_time, mean_value_loss, mean_surrogate_loss,
-        mean_trajectory_length, mean_reward, rewbuffer_mean, lenbuffer_mean, successbuffer_mean, width=80, pad=35
+        mean_trajectory_length, mean_reward, rewbuffer_mean, lenbuffer_mean, successbuffer_mean, mean_dist_2_expert, width=80, pad=35
     ):
 
         num_steps_per_iter = self.num_transitions_per_env * self.vec_env.num_envs * self.num_gpus
@@ -486,7 +514,8 @@ class PPO:
                       f"""{'Mean episode length:':>{pad}} {lenbuffer_mean:.2f}\n"""
                       f"""{'Mean success rate:':>{pad}} {mean_success_rate:.2f}\n"""
                       f"""{'Mean reward/step:':>{pad}} {mean_reward:.2f}\n"""
-                      f"""{'Mean episode length/episode:':>{pad}} {mean_trajectory_length:.2f}\n""")
+                      f"""{'Mean episode length/episode:':>{pad}} {mean_trajectory_length:.2f}\n"""
+                      f"""{'Mean dist2expert:':>{pad}} {mean_dist_2_expert:.2f}\n""")
 
         log_string += (f"""{'-' * width}\n"""
                        f"""{'Total timesteps:':>{pad}} {self.tot_timesteps}\n"""
@@ -494,7 +523,7 @@ class PPO:
                        f"""{'Total time:':>{pad}} {self.tot_time:.2f}s\n"""
                        f"""{'ETA:':>{pad}} {self.tot_time / (it + 1) * (
                                num_learning_iterations - it):.1f}s\n""")
-        with open('/home/thomastian/workspace/mvp/train_log.txt', 'a') as f:
+        with open(DIR_PATH + '/mvp/train_log.txt', 'a') as f:
             f.write(log_string)
         print(log_string)
 
