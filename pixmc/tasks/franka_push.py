@@ -106,7 +106,8 @@ class FrankaPush(BaseTask):
         # Default franka dof pos
         self.franka_default_dof_pos = to_torch(
             #[1.157, -1.066, -0.155, -2.239, -1.841, 1.003, 0.469, 0.001, 0.001], device=self.device
-            [1.1413, -0.7979, -0.4558, -2.3118, -1.6911,  1.2986,  0.5819,  0.1, 0.1], device=self.device
+            [1.2765e+00, -9.1308e-01, -3.4194e-01, -2.4059e+00, -1.6185e+00,
+            1.2260e+00,  6.0274e-01,  8.9237e-06,  4.0000e-02], device=self.device
         )
 
         # Dof state slices
@@ -535,12 +536,12 @@ class FrankaPush(BaseTask):
         # goal_position = torch.tensor([self.goal_y, 0, 0.4], device=self.device)
         # goal_position = goal_position.expand(self.object_pos.shape[0], 3)
         # self.to_height[:] = torch.norm(self.object_pos - goal_position, dim=1).unsqueeze(1)
-        self.to_height[:] = self.object_pos[:, 0].unsqueeze(1) - self.goal_y
+        self.to_height[:] = torch.abs(self.object_pos[:, 0].unsqueeze(1) - self.goal_y)
         # copy object pos to temp
         temp = torch.tensor([self.avoidance_box_start_position.x, 0, 0.4], device=self.device)
         # expamd it to n_envs x 3
         temp = temp.expand(self.object_pos.shape[0], 3)
-        self.in_collision[:] = torch.norm(self.object_pos - temp, dim=1).unsqueeze(1) < 1.414 * self.avoidance_box_size / 2. + self.object_size / 2. + 0.0
+        self.in_collision[:] = torch.norm(self.object_pos - temp, dim=1).unsqueeze(1) < (1.414 * self.avoidance_box_size / 2. + self.object_size / 2. + 0.0) * 1.05
         # do a or operation betwwen in_collision and self.collision_tracker
         self.collision_tracker[:] = self.collision_tracker + self.in_collision
 
@@ -654,6 +655,7 @@ def compute_franka_reward(
     lfo_d = torch.clamp(lfo_d, min=0.02)
     lfo_dist_reward = 1.0 / (0.04 + lfo_d)
 
+    #print(lfinger_grasp_pos)
     # Right finger to object distance
     rfo_d = torch.norm(object_pos - rfinger_grasp_pos, p=2, dim=-1)
     rfo_d = torch.clamp(rfo_d, min=0.02)
@@ -687,22 +689,22 @@ def compute_franka_reward(
         - action_penalty_scale * action_penalty \
         - 0 * collision_penalty.squeeze()
     
-    rewards = -2 * og_d - 0.5 * collision_penalty.squeeze() - lfo_d - rfo_d #- 0.1 * lift_bonus_reward
+    rewards = -1 * og_d - 2.0 * collision_penalty.squeeze() - 1.5 * lfo_d - 1.5 * rfo_d #- 0.1 * lift_bonus_reward
 
     # Goal reached
     goal_height = 0.8 - 0.4  # absolute goal height - table height
-    s = torch.where(successes < 4.0, torch.zeros_like(successes), successes)
-    successes = torch.where(og_d <= 0.1 * 0.25, torch.ones_like(successes) + successes, s)
+    #s = torch.where(successes < 1.0, torch.zeros_like(successes), successes)
+    successes = torch.where(og_d <= 0.05, torch.ones_like(successes), torch.zeros_like(successes))
 
     # Object below table height
     object_below = (object_z_init - object_pos[:, 2]) > 0.04
-    reset_buf = torch.where(object_below, torch.ones_like(reset_buf), reset_buf)
+    #reset_buf = torch.where(object_below, torch.ones_like(reset_buf), reset_buf)
 
     # Arm collision
     arm_collision = torch.any(torch.norm(contact_forces[:, arm_inds, :], dim=2) > 1.0, dim=1)
     arm_collision_penalty = arm_collision.int()
     #print(arm_collision, collision_cost)
-    #rewards = rewards - 2 * arm_collision_penalty
+    rewards = rewards - 2.0 * arm_collision_penalty
     # if torch.any(arm_collision):
     #     print('arm collision')
     
@@ -716,8 +718,8 @@ def compute_franka_reward(
     # Max episode length exceeded
     reset_buf = torch.where(progress_buf >= max_episode_length - 1, torch.ones_like(reset_buf), reset_buf)
 
-    binary_s = torch.where(successes >= 4, torch.ones_like(successes), torch.zeros_like(successes))
+    binary_s = torch.where(successes >= 1, torch.ones_like(successes), torch.zeros_like(successes))
     successes = torch.where(reset_buf > 0, binary_s, successes)
     # for each elemnt in collision_tracker, if the value is > 0, then set the element in successes to 0
-    successes = torch.where(collision_tracker.squeeze() == 0, torch.zeros_like(successes), successes)
+    successes = torch.where(collision_tracker.squeeze() == 0, successes, torch.zeros_like(successes))
     return rewards, reset_buf, successes

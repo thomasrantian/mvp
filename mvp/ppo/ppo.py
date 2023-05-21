@@ -168,7 +168,7 @@ class PPO:
         # Extract the expert demos and compute the expert embeddings
         self.rescale_ot_reward = True
         self.rescale_factor_OT = 1.0
-        self.expert_demo_embs = self.get_expert_demo_embs( DIR_PATH + '/mvp_exp_data/behavior_train_data/franka_pick/', 5)
+        #self.expert_demo_embs = self.get_expert_demo_embs( DIR_PATH + '/mvp_exp_data/behavior_train_data/franka_pick/', 5)
 
     def get_expert_demo_embs(self, data_set_dir, n_demo_needed):
         '''Get the expert demo embeddings from the data set dir.'''
@@ -207,7 +207,7 @@ class PPO:
         current_states = self.vec_env.get_state()
 
         if self.is_testing:
-            maxlen = 10000
+            maxlen = 1
             cur_reward_sum = torch.zeros(self.vec_env.num_envs, dtype=torch.float, device=self.device)
             cur_episode_length = torch.zeros(self.vec_env.num_envs, dtype=torch.float, device=self.device)
 

@@ -69,7 +69,7 @@ sinkorn_layer = OptimalTransportLayer(gamma = 1)
 if enable_feature_aligner:
     optimizer = torch.optim.Adam(list(feature_aligner.parameters()) + list(obs_encoder.parameters()), lr=1e-4)
 else:
-    optimizer = torch.optim.Adam(obs_encoder.parameters(), lr=1)
+    optimizer = torch.optim.Adam(obs_encoder.parameters(), lr=1e-2)
 
 # To do: move them to util function
 def eval_batch(eval_contrastive_ranking_indexs, eval_equal_ranking_indexs):
