@@ -207,7 +207,7 @@ class PPO:
         current_states = self.vec_env.get_state()
 
         if self.is_testing:
-            maxlen = 1
+            maxlen = 100000
             cur_reward_sum = torch.zeros(self.vec_env.num_envs, dtype=torch.float, device=self.device)
             cur_episode_length = torch.zeros(self.vec_env.num_envs, dtype=torch.float, device=self.device)
 

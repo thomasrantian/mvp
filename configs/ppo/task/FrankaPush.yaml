@@ -5,8 +5,8 @@ env:
   envSpacing: 1.5
   episodeLength: 35
 
-  object_pos_init: [0.6, 0.0]
-  object_pos_delta: [0.00, 0.0]
+  object_pos_init: [0.7, 0.0]
+  object_pos_delta: [0.00, 0.1]
 
   goal_height: 0.8
 

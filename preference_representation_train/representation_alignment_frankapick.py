@@ -69,7 +69,7 @@ sinkorn_layer = OptimalTransportLayer(gamma = 1)
 if enable_feature_aligner:
     optimizer = torch.optim.Adam(list(feature_aligner.parameters()) + list(obs_encoder.parameters()), lr=1e-4)
 else:
-    optimizer = torch.optim.Adam(obs_encoder.parameters(), lr=1e-2)
+    optimizer = torch.optim.Adam(obs_encoder.parameters(), lr=1)
 
 # To do: move them to util function
 def eval_batch(eval_contrastive_ranking_indexs, eval_equal_ranking_indexs):
@@ -125,7 +125,7 @@ def get_batch_ot_reward(current_batch, sequence_length, batch_process):
     # Reshape the batch to B x 3 x T x 32
     current_batch = current_batch.view(batch_size, 3, sequence_length, 128) # B x 3 x T x embedding_dim
     # Compute the cost-matrix of the batch: (positive, neutral) and (positive, negative), both have the same shape B x T x T
-    current_batch_positive = current_batch[:, 0, :, :] # B x T x 128
+    current_batch_positive = current_batch[:, 0, :, :] # B x T x 128 To do: change to (BxT) x 128, then norm
     current_batch_negative = current_batch[:, 1, :, :] # B x T x 128
     current_batch_neutral = current_batch[:, 2, :, :] # B x T x 128
     batch_cost_matrix_positive_neutral =  batch_cosine_distance(current_batch_positive, current_batch_neutral) 
