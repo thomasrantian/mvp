@@ -218,9 +218,9 @@ class FrankaPush(BaseTask):
         table_asset = self.gym.create_box(self.sim, table_dims.x, table_dims.y, table_dims.z, asset_options)
 
         # Create object asset
-        self.object_size = 0.08
+        self.object_size = 0.05
         asset_options = gymapi.AssetOptions()
-        #asset_options.density = 10000.0
+        asset_options.density = 100
         object_asset = self.gym.create_box(self.sim, self.object_size, self.object_size, 0.06, asset_options)
 
         # Creat the avoidance box asset
@@ -275,7 +275,7 @@ class FrankaPush(BaseTask):
         self.goal_y = 0.4
 
         object_start_pose = gymapi.Transform()
-        object_start_pose.p = gymapi.Vec3(0.2, 0.0, table_dims.z + 0.5 * self.object_size) # this will be overwritten
+        object_start_pose.p = gymapi.Vec3(0.2, 0.0, table_dims.z + 0.03) # this will be overwritten
         self.object_z_init = object_start_pose.p.z
 
         # Compute aggregate size
@@ -689,7 +689,7 @@ def compute_franka_reward(
         - action_penalty_scale * action_penalty \
         - 0 * collision_penalty.squeeze()
     
-    rewards = -1 * og_d - 2.0 * collision_penalty.squeeze() - 1.5 * lfo_d - 1.5 * rfo_d #- 0.1 * lift_bonus_reward
+    rewards = -1 * og_d - 2.0 * collision_penalty.squeeze() - 1.5 * lfo_d - 1.5 * rfo_d - 0.1 * lift_bonus_reward - action_penalty_scale * action_penalty
 
     # Goal reached
     goal_height = 0.8 - 0.4  # absolute goal height - table height
