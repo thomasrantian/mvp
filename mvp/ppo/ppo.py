@@ -423,8 +423,8 @@ class PPO:
                 if self.num_gpus > 1:
                     torch.distributed.barrier()
                 # Save train rollouts (images, ground truth rewards)
-                # if it % 5 == 0:
-                self.save_rolloutdata(rollout_visual_obs_hist)
+                if it % 5 == 0:
+                    self.save_rolloutdata(rollout_visual_obs_hist)
             
             if self.print_log:
                 self.save(os.path.join(self.log_dir, 'model_{}.pt'.format(num_learning_iterations)))

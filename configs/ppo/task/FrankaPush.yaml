@@ -3,9 +3,9 @@ name: FrankaPush
 env:
   numEnvs: 1
   envSpacing: 1.5
-  episodeLength: 35
+  episodeLength: 45
 
-  object_pos_init: [0.7, 0.0]
+  object_pos_init: [0.65, 0.0]
   object_pos_delta: [0.00, 0.1]
 
   goal_height: 0.8

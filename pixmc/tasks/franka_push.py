@@ -105,9 +105,9 @@ class FrankaPush(BaseTask):
 
         # Default franka dof pos
         self.franka_default_dof_pos = to_torch(
-            [1.157, -1.066, -0.155, -2.239, -1.841, 1.003, 0.469, 0.001, 0.001], device=self.device
-            # [1.2765e+00, -9.1308e-01, -3.4194e-01, -2.4059e+00, -1.6185e+00,
-            # 1.2260e+00,  6.0274e-01,  8.9237e-06,  4.0000e-02], device=self.device
+            #[1.157, -1.066, -0.155, -2.239, -1.841, 1.003, 0.469, 0.001, 0.001], device=self.device
+            [1.2765e+00, -9.1308e-01, -3.4194e-01, -2.4059e+00, -1.6185e+00,
+            1.2260e+00,  6.0274e-01,  8.9237e-06,  4.0000e-02], device=self.device
         )
 
         # Dof state slices
@@ -216,7 +216,7 @@ class FrankaPush(BaseTask):
         franka_asset = self.gym.load_asset(self.sim, asset_root, franka_asset_file, asset_options)
 
         # Create table asset
-        table_dims = gymapi.Vec3(0.6, 1.0, 0.4)
+        table_dims = gymapi.Vec3(0.6, 1.5, 0.35)
         asset_options = gymapi.AssetOptions()
         asset_options.fix_base_link = True
         table_asset = self.gym.create_box(self.sim, table_dims.x, table_dims.y, table_dims.z, asset_options)
@@ -224,7 +224,7 @@ class FrankaPush(BaseTask):
         # Create object asset
         self.object_size = 0.05
         asset_options = gymapi.AssetOptions()
-        #asset_options.density = 100
+        asset_options.density = 5000
         object_asset = self.gym.create_box(self.sim, self.object_size, self.object_size, 0.06, asset_options)
 
         # Creat the avoidance box asset
@@ -232,6 +232,7 @@ class FrankaPush(BaseTask):
         avoidance_box_dims = gymapi.Vec3(self.avoidance_box_size, self.avoidance_box_size, self.avoidance_box_size)
         asset_options = gymapi.AssetOptions()
         #asset_options.fix_base_link = True
+        asset_options.density = 5000
         avoidance_box_asset = self.gym.create_box(self.sim, avoidance_box_dims.x, avoidance_box_dims.y, avoidance_box_dims.z, asset_options)
 
 
@@ -450,7 +451,8 @@ class FrankaPush(BaseTask):
             self.lfinger_grasp_pos, self.rfinger_grasp_pos, self.object_pos, self.to_height,
             self.object_z_init, self.object_dist_reward_scale, self.lift_bonus_reward_scale,
             self.goal_dist_reward_scale, self.goal_bonus_reward_scale, self.action_penalty_scale,
-            self.contact_forces, self.rigid_body_arm_inds, self.max_episode_length, self.in_collision, self.objects_distance
+            self.contact_forces, self.rigid_body_arm_inds, self.max_episode_length, self.in_collision,
+            self.objects_distance, self.avoidance_box_pos
         )
     
     def reset_all(self):
@@ -513,12 +515,12 @@ class FrankaPush(BaseTask):
             (len(env_ids), 1), device=self.device
         ).squeeze(dim=1)
         delta_y = torch_rand_float(
-            -self.object_pos_delta[1], self.object_pos_delta[1],
+            -0.12, 0.12,
             (len(env_ids), 1), device=self.device
         ).squeeze(dim=1)
 
-        self.root_state_tensor[env_ids, self.env_avoidance_box_ind, 0] = self.object_pos_init[0] + delta_x - 0.15
-        self.root_state_tensor[env_ids, self.env_avoidance_box_ind, 1] = self.object_pos_init[1] + delta_y + 0.1
+        self.root_state_tensor[env_ids, self.env_avoidance_box_ind, 0] = self.object_pos_init[0] + delta_x - 0.12
+        self.root_state_tensor[env_ids, self.env_avoidance_box_ind, 1] = self.object_pos_init[1] + delta_y
         self.root_state_tensor[env_ids, self.env_avoidance_box_ind, 2] = self.object_z_init
         self.root_state_tensor[env_ids, self.env_avoidance_box_ind, 3:6] = 0.0
         self.root_state_tensor[env_ids, self.env_avoidance_box_ind, 6] = 1.0
@@ -588,7 +590,10 @@ class FrankaPush(BaseTask):
         self.rfinger_to_target[:] = self.object_pos - self.rfinger_grasp_pos
 
         # distance to the goal region (max between 2 objects)
-        self.to_height[:] = torch.maximum(torch.abs(self.object_pos[:, 0].unsqueeze(1) - self.goal_y), torch.abs(self.avoidance_box_pos[:, 0].unsqueeze(1) - self.goal_y))
+        #self.to_height[:] = torch.maximum(torch.abs(self.object_pos[:, 0].unsqueeze(1) - self.goal_y), torch.abs(self.avoidance_box_pos[:, 0].unsqueeze(1) - self.goal_y))
+        goal_position = torch.tensor([self.goal_y, 0.0, 0.43], device=self.device)
+        goal_position = goal_position.expand(self.object_pos.shape[0], 3)
+        self.to_height[:] = torch.maximum(torch.norm(self.object_pos - goal_position, dim=1).unsqueeze(1), torch.norm(self.avoidance_box_pos - goal_position, dim=1).unsqueeze(1))
         # distance between 2 objects
         self.objects_distance[:] = torch.norm(self.object_pos - self.avoidance_box_pos, dim=1).unsqueeze(1)
 
@@ -688,13 +693,14 @@ class FrankaPush(BaseTask):
         #     self.third_person_cam_image_id += 1
 
 
-#@torch.jit.script
+@torch.jit.script
 def compute_franka_reward(
     reset_buf: Tensor, progress_buf: Tensor, successes: Tensor, actions: Tensor,
     lfinger_grasp_pos: Tensor, rfinger_grasp_pos: Tensor, object_pos: Tensor, to_height: Tensor,
     object_z_init: float, object_dist_reward_scale: float, lift_bonus_reward_scale: float,
     goal_dist_reward_scale: float, goal_bonus_reward_scale: float, action_penalty_scale: float,
-    contact_forces: Tensor, arm_inds: Tensor, max_episode_length: int, collision_penalty: Tensor, objects_distance: Tensor
+    contact_forces: Tensor, arm_inds: Tensor, max_episode_length: int, collision_penalty: Tensor,
+    objects_distance: Tensor, avoidance_box_pos: Tensor
 ) -> Tuple[Tensor, Tensor, Tensor]:
 
     # Left finger to object distance
@@ -716,7 +722,8 @@ def compute_franka_reward(
     lift_bonus_reward = torch.where(object_above, lift_bonus_reward + 0.5, lift_bonus_reward)
 
     # Object to goal height distance
-    og_d = torch.norm(to_height, p=2, dim=-1)
+    og_d = torch.maximum(torch.abs(object_pos[:, 0].unsqueeze(1) - 0.4), torch.abs(avoidance_box_pos[:, 0].unsqueeze(1) - 0.4))
+    #og_d = torch.norm(to_height, p=2, dim=-1)
     og_dist_reward = torch.zeros_like(lfo_dist_reward)
     og_dist_reward =1.0 / (0.04 + og_d)
 
@@ -724,8 +731,8 @@ def compute_franka_reward(
     # Regularization on the actions
     action_penalty = torch.sum(actions ** 2, dim=-1)
     
-    rewards = -2.0 * og_d - 1.0 * objects_distance.squeeze() - 1.5 * lfo_d - 1.5 * rfo_d - action_penalty_scale * action_penalty
-
+    rewards = -2.0 * og_d - 3.0 * objects_distance.squeeze() - 0.5 * lfo_d - 0.5 * rfo_d - action_penalty_scale * action_penalty
+    rewards = rewards - lift_bonus_reward
     # Goal reached
     goal_height = 0.8 - 0.4  # absolute goal height - table height
     #s = torch.where(successes < 1.0, torch.zeros_like(successes), successes)
@@ -739,7 +746,7 @@ def compute_franka_reward(
     arm_collision = torch.any(torch.norm(contact_forces[:, arm_inds, :], dim=2) > 1.0, dim=1)
     arm_collision_penalty = arm_collision.int()
     #print(arm_collision, collision_cost)
-    #rewards = rewards - 2.0 * arm_collision_penalty
+    rewards = rewards - 5.0 * arm_collision_penalty
     # if torch.any(arm_collision):
     #     print('arm collision')
     
