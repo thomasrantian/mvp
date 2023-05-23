@@ -144,7 +144,7 @@ class FrankaPush(BaseTask):
 
         # Global inds
         self.global_indices = torch.arange(
-            self.num_envs * (1 + 1 + 1 + 1), dtype=torch.int32, device=self.device
+            self.num_envs * (1 + 1 + 1 + 1 + 1), dtype=torch.int32, device=self.device
         ).view(self.num_envs, -1)
 
         # Franka dof pos and vel scaled
@@ -235,6 +235,12 @@ class FrankaPush(BaseTask):
         asset_options.density = 5000
         avoidance_box_asset = self.gym.create_box(self.sim, avoidance_box_dims.x, avoidance_box_dims.y, avoidance_box_dims.z, asset_options)
 
+        # Create av asset
+        asset_options = gymapi.AssetOptions()
+        asset_options.disable_gravity = True
+        asset_options.fix_base_link = True
+        goal_asset = self.gym.create_box(self.sim, table_dims.x / 3.0, table_dims.y, 0.000001, asset_options)
+        
 
         self.num_franka_bodies = self.gym.get_asset_rigid_body_count(franka_asset)
         self.num_franka_dofs = self.gym.get_asset_dof_count(franka_asset)
@@ -283,6 +289,9 @@ class FrankaPush(BaseTask):
         object_start_pose.p = gymapi.Vec3(0.6, 0.0, table_dims.z + 0.03) # this will be overwritten
         self.object_z_init = object_start_pose.p.z
 
+        goal_reagion_start_pose = gymapi.Transform()
+        goal_reagion_start_pose.p = gymapi.Vec3(0.3, table_start_pose.p.y, table_dims.z)
+
         # Compute aggregate size
         num_franka_bodies = self.gym.get_asset_rigid_body_count(franka_asset)
         num_franka_shapes = self.gym.get_asset_rigid_shape_count(franka_asset)
@@ -292,8 +301,10 @@ class FrankaPush(BaseTask):
         num_object_shapes = self.gym.get_asset_rigid_shape_count(object_asset)
         num_avoidance_box_bodies = self.gym.get_asset_rigid_body_count(avoidance_box_asset)
         num_avoidance_box_shapes = self.gym.get_asset_rigid_shape_count(avoidance_box_asset)
-        max_agg_bodies = num_franka_bodies + num_table_bodies + num_object_bodies + num_avoidance_box_bodies
-        max_agg_shapes = num_franka_shapes + num_table_shapes + num_object_shapes + num_avoidance_box_shapes
+        num_goal_bodies = self.gym.get_asset_rigid_body_count(goal_asset)
+        num_goal_shapes = self.gym.get_asset_rigid_shape_count(goal_asset)
+        max_agg_bodies = num_franka_bodies + num_table_bodies + num_object_bodies + num_avoidance_box_bodies + num_goal_bodies
+        max_agg_shapes = num_franka_shapes + num_table_shapes + num_object_shapes + num_avoidance_box_shapes + num_goal_shapes
 
         self.frankas = []
         self.tables = []
@@ -340,6 +351,11 @@ class FrankaPush(BaseTask):
             avoidance_box_actor = self.gym.create_actor(env_ptr, avoidance_box_asset, avoidance_box_start_pose, "avoidance_box", i, 0, 0)
             self.gym.set_rigid_body_color(env_ptr, avoidance_box_actor, 0, gymapi.MESH_VISUAL_AND_COLLISION, gymapi.Vec3(0, 1, 0))
 
+            # Goal reagion actor
+            goal_actor = self.gym.create_actor(env_ptr, goal_asset, goal_reagion_start_pose, "goal", i, 0, 0)
+            goal_color = gymapi.Vec3(209, 254, 137) / 255
+            self.gym.set_rigid_body_color(env_ptr, goal_actor, 0, gymapi.MESH_VISUAL_AND_COLLISION, goal_color)
+
 
             self.gym.end_aggregate(env_ptr)
 
@@ -349,6 +365,8 @@ class FrankaPush(BaseTask):
             self.tables.append(table_actor)
             self.objects.append(object_actor)
             self.avoidance_boxes.append(avoidance_box_actor)
+            #self.goals.append(goal_actor)
+
 
             # Set up a third person camera
             if self.enable_third_person_cam:
@@ -372,7 +390,7 @@ class FrankaPush(BaseTask):
                 # )
                 # Manually set camera position
                 cam_pos = gymapi.Vec3(0.5, 0.0, 1.2)
-                cam_target = gymapi.Vec3(0.6, 0.0, -1.5)
+                cam_target = gymapi.Vec3(0.8, 0.0, -1.5)
                 self.gym.set_camera_location(cam_handle, env_ptr, cam_pos, cam_target)
                 self.third_person_cams.append(cam_handle)
                 # Camera tensor
@@ -671,18 +689,18 @@ class FrankaPush(BaseTask):
         self.compute_visual_observations()
         
         
-        for i in range(self.num_envs):
-            # define the vertices of the box
-            center_pos = self.avoidance_box_start_position.x
-            p1 = gymapi.Vec3(center_pos + self.avoidance_box_size/2, -self.avoidance_box_size/2, 0.401)
-            p2 = gymapi.Vec3(center_pos - self.avoidance_box_size/2, -self.avoidance_box_size/2, 0.401)
-            p3 = gymapi.Vec3(center_pos - self.avoidance_box_size/2, self.avoidance_box_size/2, 0.401)
-            p4 = gymapi.Vec3(center_pos + self.avoidance_box_size/2, self.avoidance_box_size/2, 0.401)
+        # for i in range(self.num_envs):
+        #     # define the vertices of the box
+        #     center_pos = self.avoidance_box_start_position.x
+        #     p1 = gymapi.Vec3(center_pos + self.avoidance_box_size/2, -self.avoidance_box_size/2, 0.401)
+        #     p2 = gymapi.Vec3(center_pos - self.avoidance_box_size/2, -self.avoidance_box_size/2, 0.401)
+        #     p3 = gymapi.Vec3(center_pos - self.avoidance_box_size/2, self.avoidance_box_size/2, 0.401)
+        #     p4 = gymapi.Vec3(center_pos + self.avoidance_box_size/2, self.avoidance_box_size/2, 0.401)
             
-            gymutil.draw_line(p1, p2, gymapi.Vec3(0, 0, 1), self.gym, self.viewer, self.envs[i])
-            gymutil.draw_line(p2, p3, gymapi.Vec3(0, 0, 1), self.gym, self.viewer, self.envs[i])
-            gymutil.draw_line(p3, p4, gymapi.Vec3(0, 0, 1), self.gym, self.viewer, self.envs[i])
-            gymutil.draw_line(p4, p1, gymapi.Vec3(0, 0, 1), self.gym, self.viewer, self.envs[i])
+        #     gymutil.draw_line(p1, p2, gymapi.Vec3(0, 0, 1), self.gym, self.viewer, self.envs[i])
+        #     gymutil.draw_line(p2, p3, gymapi.Vec3(0, 0, 1), self.gym, self.viewer, self.envs[i])
+        #     gymutil.draw_line(p3, p4, gymapi.Vec3(0, 0, 1), self.gym, self.viewer, self.envs[i])
+        #     gymutil.draw_line(p4, p1, gymapi.Vec3(0, 0, 1), self.gym, self.viewer, self.envs[i])
         
         # # Same third view camera image in env id 0
         # if self.save_third_person_view_image:

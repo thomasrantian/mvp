@@ -207,7 +207,7 @@ class PPO:
         current_states = self.vec_env.get_state()
 
         if self.is_testing:
-            maxlen = 100000
+            maxlen = 0
             cur_reward_sum = torch.zeros(self.vec_env.num_envs, dtype=torch.float, device=self.device)
             cur_episode_length = torch.zeros(self.vec_env.num_envs, dtype=torch.float, device=self.device)
 
@@ -246,16 +246,13 @@ class PPO:
                     successes.extend(infos["successes"][new_ids][:, 0].cpu().numpy().tolist())
                     cur_reward_sum[new_ids] = 0
                     cur_episode_length[new_ids] = 0
-                    #print(len(infos["third_person_cam_tensors"]))
-                    #print(cur_episode_length)
-                    # if self.save_camera_image:
-                    #     step_id += 1
-                    #     #print(next_obs.shape)
-                    #     ttt = next_obs[0,:,:,:].cpu().numpy()
-                    #     ttt = np.moveaxis(ttt, 0, -1) * 255
-                    #     #print(ttt)
-                    #     out_f = '/home/thomastian/workspace/mvp/mvp_exp_data/demo' + "%d.png" % step_id
-                    #     cv2.imwrite(out_f, ttt)
+                    if True:
+                        step_id += 1
+                        image_obs = self.vec_env.get_visual_obs()[0].view(3,224,224).cpu().detach().numpy() # (num_envs, 3, 224, 224)
+                        image_obs = np.moveaxis(image_obs, 0, -1)
+                        #print(ttt)
+                        out_f = '/home/thomastian/workspace/temp/' + "%d.png" % step_id
+                        cv2.imwrite(out_f, image_obs)
 
                     if len(new_ids) > 0:
                         print("-" * 80)

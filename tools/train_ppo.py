@@ -26,7 +26,7 @@ def train(cfg: omegaconf.DictConfig):
     #assert cfg.num_gpus == 1
     
     # Change the num_gpu_here
-    cfg.num_gpus = 8
+    cfg.num_gpus = 1
     # Set up distributed env
     if cfg.num_gpus > 1:
         dist.init_process_group("nccl")
@@ -51,11 +51,11 @@ def train(cfg: omegaconf.DictConfig):
     print_dict(cfg_dict)
 
     # For test mode only, use only one environment
-    # cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/" + "6062689e-5e74-4b32-a5f7-54303cd57262"
+    # cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/" + "8efe8d72-a710-4c51-8933-7e001e56428e"
     # cfg.test = True
     # cfg.headless = False
-    # cfg.resume = 1950
-    # cfg.task.env.numEnvs = 100
+    # cfg.resume = 5000
+    # cfg.task.env.numEnvs = 1
     # cfg_dict = omegaconf_to_dict(cfg)
 
     # Create logdir and dump cfg
