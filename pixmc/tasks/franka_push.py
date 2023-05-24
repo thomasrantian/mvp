@@ -283,7 +283,7 @@ class FrankaPush(BaseTask):
         avoidance_box_start_pose.p = gymapi.Vec3(0.55, 0.1, table_dims.z + 0.03)
         self.avoidance_box_start_position = avoidance_box_start_pose.p
         
-        self.goal_y = 0.4
+        self.goal_x = 0.3
 
         object_start_pose = gymapi.Transform()
         object_start_pose.p = gymapi.Vec3(0.6, 0.0, table_dims.z + 0.03) # this will be overwritten
@@ -344,7 +344,7 @@ class FrankaPush(BaseTask):
 
             # Object actor
             object_actor = self.gym.create_actor(env_ptr, object_asset, object_start_pose, "object", i, 0, 0)
-            object_color = gymapi.Vec3(1, 0, 0)
+            object_color = gymapi.Vec3(1, 0, 0) # this is the rgb value
             self.gym.set_rigid_body_color(env_ptr, object_actor, 0, gymapi.MESH_VISUAL_AND_COLLISION, object_color)
 
             # Avoidance box actor
@@ -353,7 +353,7 @@ class FrankaPush(BaseTask):
 
             # Goal reagion actor
             goal_actor = self.gym.create_actor(env_ptr, goal_asset, goal_reagion_start_pose, "goal", i, 0, 0)
-            goal_color = gymapi.Vec3(209, 254, 137) / 255
+            goal_color = gymapi.Vec3(137, 209, 255) / 255
             self.gym.set_rigid_body_color(env_ptr, goal_actor, 0, gymapi.MESH_VISUAL_AND_COLLISION, goal_color)
 
 
@@ -622,8 +622,8 @@ class FrankaPush(BaseTask):
         self.rfinger_to_target[:] = self.object_pos - self.rfinger_grasp_pos
 
         # distance to the goal region (max between 2 objects)
-        self.to_height[:] = torch.maximum(torch.abs(self.object_pos[:, 0].unsqueeze(1) - self.goal_y), torch.abs(self.avoidance_box_pos[:, 0].unsqueeze(1) - self.goal_y))
-        #goal_position = torch.tensor([self.goal_y, 0.0, 0.43], device=self.device)
+        self.to_height[:] = torch.maximum(torch.abs(self.object_pos[:, 0].unsqueeze(1) - self.goal_x), torch.abs(self.avoidance_box_pos[:, 0].unsqueeze(1) - self.goal_x))
+        #goal_position = torch.tensor([self.goal_x, 0.0, 0.43], device=self.device)
         #goal_position = goal_position.expand(self.object_pos.shape[0], 3)
         #self.to_height[:] = torch.maximum(torch.norm(self.object_pos - goal_position, dim=1).unsqueeze(1), torch.norm(self.avoidance_box_pos - goal_position, dim=1).unsqueeze(1))
         # distance between 2 objects

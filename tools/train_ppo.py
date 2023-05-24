@@ -51,12 +51,12 @@ def train(cfg: omegaconf.DictConfig):
     print_dict(cfg_dict)
 
     # For test mode only, use only one environment
-    # cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/" + "8efe8d72-a710-4c51-8933-7e001e56428e"
-    # cfg.test = True
-    # cfg.headless = False
-    # cfg.resume = 5000
-    # cfg.task.env.numEnvs = 1
-    # cfg_dict = omegaconf_to_dict(cfg)
+    cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/" + "8efe8d72-a710-4c51-8933-7e001e56428e"
+    cfg.test = True
+    cfg.headless = False
+    cfg.resume = 5000
+    cfg.task.env.numEnvs = 100
+    cfg_dict = omegaconf_to_dict(cfg)
 
     # Create logdir and dump cfg
     if not cfg.test:

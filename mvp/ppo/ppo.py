@@ -251,8 +251,9 @@ class PPO:
                         image_obs = self.vec_env.get_visual_obs()[0].view(3,224,224).cpu().detach().numpy() # (num_envs, 3, 224, 224)
                         image_obs = np.moveaxis(image_obs, 0, -1)
                         #print(ttt)
+                        image_obs = image_obs[...,::-1]
                         out_f = '/home/thomastian/workspace/temp/' + "%d.png" % step_id
-                        cv2.imwrite(out_f, image_obs)
+                        cv2.imwrite(out_f, image_obs) # It seems that this saves as BGR!!!
 
                     if len(new_ids) > 0:
                         print("-" * 80)
@@ -447,6 +448,8 @@ class PPO:
             out_f = rollout_save_folder + "%d.png" % t
             image_tensor = rollout_visual_obs_hist[t,0,:,:,:].cpu().detach().numpy()
             image_tensor = np.moveaxis(image_tensor, 0, -1)
+            # convert rgb to bgr
+            image_tensor = image_tensor[...,::-1]
             cv2.imwrite(out_f, image_tensor)
             first_env_reward.append(self.storage.rewards[t, 0, 0].cpu().detach().numpy())
             if self.reward_type == 'OT':
