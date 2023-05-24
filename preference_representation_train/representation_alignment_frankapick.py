@@ -11,19 +11,19 @@ import torch.nn as nn
 from representation_alignment_util import *
 
 # Set the sequence length of the demonstration. For now: 50 for sweep, 30 for collision avoidance
-sequence_length = 35
+sequence_length = 45
 
 # Define the data directory
-contrastive_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_18_franka_pick/contrastive_ranking_triplet'
-equal_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_18_franka_pick/equal_ranking_triplet'
+contrastive_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_23_franka_pick_push/contrastive_ranking_triplet'
+equal_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_23_franka_pick_push/equal_ranking_triplet'
 
 # Prepare the train and eval indexs
 contrastive_ranking_data_size = len(os.listdir(contrastive_ranking_data_dir))
-contrastive_ranking_data_size = 100
+#contrastive_ranking_data_size = 100
 contrastive_indexs = np.arange(contrastive_ranking_data_size)
 np.random.shuffle(contrastive_indexs)
 equal_ranking_data_size = len(os.listdir(equal_ranking_data_dir))
-equal_ranking_data_size = 100
+#equal_ranking_data_size = 100
 equal_indexs = np.arange(equal_ranking_data_size)
 np.random.shuffle(equal_indexs)
 

@@ -16,7 +16,7 @@ def extract_one_rollout(data_dir):
     total_frames_in_demo = len(os.listdir(data_dir))
     all_frames_in_demo = []
     # Extract the frame
-    for frame_id in range(35):
+    for frame_id in range(45):
         frame_path = os.path.join(data_dir, str(frame_id)) + '.png'
         image_observation = Image.open(frame_path)
         image_observation = np.asarray(image_observation)
@@ -46,15 +46,15 @@ obs_encoder = Encoder(
     freeze=encoder_cfg["freeze"],
     emb_dim=emb_dim
 ).cpu()
-obs_encoder.load_state_dict(torch.load('/home/thomastian/workspace/mvp/frankapick_obs_encoder.pt'))
+#obs_encoder.load_state_dict(torch.load('/home/thomastian/workspace/mvp/frankapick_obs_encoder.pt'))
 # Set the obs_encoder to train mode
 obs_encoder.eval()
 
-sample_a = '/home/thomastian/workspace/mvp_exp_data/behavior_train_data/franka_pick/3'
-sample_b = '/home/thomastian/workspace/mvp_exp_data/rl_runs/d86248f0-f1c8-42a4-ab2b-28b9bf1f103a/train_sample/22'
+# sample_a = '/home/thomastian/workspace/mvp_exp_data/behavior_train_data/franka_pick/3'
+# sample_b = '/home/thomastian/workspace/mvp_exp_data/rl_runs/d86248f0-f1c8-42a4-ab2b-28b9bf1f103a/train_sample/22'
 
-# sample_a = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_18_franka_pick/contrastive_ranking_triplet/1/positive'
-# sample_b = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_18_franka_pick/contrastive_ranking_triplet/1/negative'
+sample_a = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_23_franka_pick_push/contrastive_ranking_triplet/2/positive'
+sample_b = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_23_franka_pick_push/contrastive_ranking_triplet/2/negative'
 
 
 sample_a_embs = get_demo_embs(sample_a)
