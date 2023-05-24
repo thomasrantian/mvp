@@ -26,7 +26,7 @@ def train(cfg: omegaconf.DictConfig):
     #assert cfg.num_gpus == 1
     
     # Change the num_gpu_here
-    cfg.num_gpus = 1
+    cfg.num_gpus = 8
     # Set up distributed env
     if cfg.num_gpus > 1:
         dist.init_process_group("nccl")
@@ -37,7 +37,7 @@ def train(cfg: omegaconf.DictConfig):
 
     # Change the log dir in the mvp_exp_data folder
     # generate a unique id for the experiment
-    cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/5_22_push_2_obs/" + str(uuid.uuid4())
+    cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/5_23_push_2_obs/" + str(uuid.uuid4())
     cfg.task.env.numEnvs = 20
     
     # Set the reward type
@@ -51,12 +51,12 @@ def train(cfg: omegaconf.DictConfig):
     print_dict(cfg_dict)
 
     # For test mode only, use only one environment
-    cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/" + "8efe8d72-a710-4c51-8933-7e001e56428e"
-    cfg.test = True
-    cfg.headless = False
-    cfg.resume = 5000
-    cfg.task.env.numEnvs = 100
-    cfg_dict = omegaconf_to_dict(cfg)
+    # cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/" + "8efe8d72-a710-4c51-8933-7e001e56428e"
+    # cfg.test = True
+    # cfg.headless = False
+    # cfg.resume = 5000
+    # cfg.task.env.numEnvs = 100
+    # cfg_dict = omegaconf_to_dict(cfg)
 
     # Create logdir and dump cfg
     if not cfg.test:

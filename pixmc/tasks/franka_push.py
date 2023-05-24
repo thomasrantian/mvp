@@ -283,7 +283,7 @@ class FrankaPush(BaseTask):
         avoidance_box_start_pose.p = gymapi.Vec3(0.55, 0.1, table_dims.z + 0.03)
         self.avoidance_box_start_position = avoidance_box_start_pose.p
         
-        self.goal_x = 0.3
+        self.goal_x = 0.4
 
         object_start_pose = gymapi.Transform()
         object_start_pose.p = gymapi.Vec3(0.6, 0.0, table_dims.z + 0.03) # this will be overwritten

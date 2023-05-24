@@ -3,6 +3,8 @@ import numpy as np
 import cv2
 from PIL import Image
 import torch
+import sys
+sys.path.append("..")
 from ddn.ddn.pytorch.optimal_transport import sinkhorn, OptimalTransportLayer
 import torch.nn as nn
 
