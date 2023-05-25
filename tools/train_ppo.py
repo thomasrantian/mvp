@@ -26,7 +26,7 @@ def train(cfg: omegaconf.DictConfig):
     #assert cfg.num_gpus == 1
     
     # Change the num_gpu_here
-    cfg.num_gpus = 8
+    cfg.num_gpus = 3
     # Set up distributed env
     if cfg.num_gpus > 1:
         dist.init_process_group("nccl")
@@ -37,11 +37,11 @@ def train(cfg: omegaconf.DictConfig):
 
     # Change the log dir in the mvp_exp_data folder
     # generate a unique id for the experiment
-    cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/5_23_push_2_obs/" + str(uuid.uuid4())
-    cfg.task.env.numEnvs = 20
+    cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/5_23_push_2_obs_OT/" + str(uuid.uuid4())
+    cfg.task.env.numEnvs = 5
     
     # Set the reward type
-    cfg.train.learn.reward_type = "ground_truth"
+    cfg.train.learn.reward_type = "OT"
      
     # Parse the config
     cfg_dict = omegaconf_to_dict(cfg)

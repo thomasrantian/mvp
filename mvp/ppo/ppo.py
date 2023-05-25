@@ -157,7 +157,7 @@ class PPO:
             emb_dim=preference_encoder_cfg["emb_dim"],
         ).cuda()
         # load the pretrained weight
-        #self.preference_encoder.load_state_dict(torch.load('frankapick_obs_encoder.pt'))
+        self.preference_encoder.load_state_dict(torch.load(DIR_PATH + '/mvp_exp_data/mae_encoders/frankapick_obs_encoder.pt'))
         
         print('Loaded mvp encoder weight from {}'.format('TBD'))
         # To do: Load the preference encoder weight here once it is ready
@@ -168,7 +168,7 @@ class PPO:
         # Extract the expert demos and compute the expert embeddings
         self.rescale_ot_reward = True
         self.rescale_factor_OT = 1.0
-        #self.expert_demo_embs = self.get_expert_demo_embs( DIR_PATH + '/mvp_exp_data/behavior_train_data/franka_pick/', 5)
+        self.expert_demo_embs = self.get_expert_demo_embs( DIR_PATH + '/mvp_exp_data/behavior_train_data/franka_push/', 5)
 
     def get_expert_demo_embs(self, data_set_dir, n_demo_needed):
         '''Get the expert demo embeddings from the data set dir.'''
@@ -289,6 +289,9 @@ class PPO:
                     # Compute the action
                     actions, actions_log_prob, values, mu, sigma, current_obs_feats = \
                         self.actor_critic.act(current_obs, current_states)
+                    # if it < 10, we do random actions
+                    #if it < 10:
+                    #    actions = torch.rand(actions.shape, device=self.device) * 0.6
                     # Step the vec_environment
                     #actions[:, -2:] *= 0.5
                     next_obs, rews, dones, infos = self.vec_env.step(actions) # next_obs is from the obs_buf
