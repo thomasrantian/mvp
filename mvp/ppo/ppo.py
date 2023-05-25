@@ -298,8 +298,10 @@ class PPO:
                     next_states = self.vec_env.get_state()
                     # Record the transition
                     obs_in = current_obs_feats if current_obs_feats is not None else current_obs
+                    # Extract the previlege_rewards from the infos
+                    previlege_rewards = infos["privilege_rew_buf"]
                     self.storage.add_transitions(
-                        obs_in, current_states, actions, rews, dones, values, actions_log_prob, mu, sigma
+                        obs_in, current_states, actions, rews, dones, values, actions_log_prob, mu, sigma, previlege_rewards
                     )
                     current_obs.copy_(next_obs)
                     current_states.copy_(next_states)
@@ -348,7 +350,7 @@ class PPO:
                             transport_plan = self.sinkorn_layer(cost_matrix)
                             if self.rescale_ot_reward:
                                 # We compute a rescale factor after the first episode. [Copied from the watch and teach paper]
-                                self.rescale_factor_OT  = self.rescale_factor_OT  / np.abs(np.sum(torch.diag(torch.mm(transport_plan, cost_matrix.T)).detach().cpu().numpy())) * 10
+                                self.rescale_factor_OT  = self.rescale_factor_OT  / np.abs(np.sum(torch.diag(torch.mm(transport_plan, cost_matrix.T)).detach().cpu().numpy())) * 1.0
                                 self.rescale_ot_reward = False
 
                             ot_reward = -self.rescale_factor_OT * torch.diag(torch.mm(transport_plan, cost_matrix.T))
@@ -384,6 +386,7 @@ class PPO:
                     # batch_ot_reward = batch_ot_reward.transpose(0, 1) # T x B x 1
                     
                     # # 3) Modify the storage
+                    # Augment the OT reward with the safety reward
                     self.storage.fill_ot_rewards(batch_ot_reward)            
                 if self.print_log:
                     rewbuffer.extend(reward_sum)

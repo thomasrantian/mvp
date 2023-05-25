@@ -178,6 +178,8 @@ class FrankaPush(BaseTask):
         # Success counts
         self.successes = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         self.extras["successes"] = self.successes
+        # Put privilege_rew_buf in extras so that it is saved
+        self.extras["privilege_rew_buf"] = self.privilege_rew_buf
 
         self.reset(torch.arange(self.num_envs, device=self.device))
 
@@ -353,7 +355,7 @@ class FrankaPush(BaseTask):
 
             # Goal reagion actor
             goal_actor = self.gym.create_actor(env_ptr, goal_asset, goal_reagion_start_pose, "goal", i, 0, 0)
-            goal_color = gymapi.Vec3(137, 209, 255) / 255
+            goal_color = gymapi.Vec3(100, 159, 255) / 255
             self.gym.set_rigid_body_color(env_ptr, goal_actor, 0, gymapi.MESH_VISUAL_AND_COLLISION, goal_color)
 
 
@@ -389,8 +391,8 @@ class FrankaPush(BaseTask):
                 #     local_t, gymapi.FOLLOW_TRANSFORM
                 # )
                 # Manually set camera position
-                cam_pos = gymapi.Vec3(0.5, 0.0, 1.2)
-                cam_target = gymapi.Vec3(0.8, 0.0, -1.5)
+                cam_pos = gymapi.Vec3(0.5, 0.0, 1.0)
+                cam_target = gymapi.Vec3(1.0, 0.0, -1.5)
                 self.gym.set_camera_location(cam_handle, env_ptr, cam_pos, cam_target)
                 self.third_person_cams.append(cam_handle)
                 # Camera tensor
@@ -464,7 +466,7 @@ class FrankaPush(BaseTask):
         self.rfinger_grasp_rot[..., 3] = 1.0
 
     def compute_reward(self, actions):
-      self.rew_buf[:], self.reset_buf[:], self.successes[:] = compute_franka_reward(
+      self.rew_buf[:], self.reset_buf[:], self.successes[:], self.privilege_rew_buf[:] = compute_franka_reward(
             self.reset_buf, self.progress_buf, self.successes, self.actions,
             self.lfinger_grasp_pos, self.rfinger_grasp_pos, self.object_pos, self.to_height,
             self.object_z_init, self.object_dist_reward_scale, self.lift_bonus_reward_scale,
@@ -725,7 +727,7 @@ class FrankaPush(BaseTask):
         #     self.third_person_cam_image_id += 1
 
 
-@torch.jit.script
+#@torch.jit.script
 def compute_franka_reward(
     reset_buf: Tensor, progress_buf: Tensor, successes: Tensor, actions: Tensor,
     lfinger_grasp_pos: Tensor, rfinger_grasp_pos: Tensor, object_pos: Tensor, to_height: Tensor,
@@ -733,7 +735,7 @@ def compute_franka_reward(
     goal_dist_reward_scale: float, goal_bonus_reward_scale: float, action_penalty_scale: float,
     contact_forces: Tensor, arm_inds: Tensor, max_episode_length: int, collision_penalty: Tensor,
     objects_distance: Tensor, avoidance_box_pos: Tensor
-) -> Tuple[Tensor, Tensor, Tensor]:
+) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
 
     # Left finger to object distance
     lfo_d = torch.norm(object_pos - lfinger_grasp_pos, p=2, dim=-1)
@@ -776,9 +778,9 @@ def compute_franka_reward(
 
     # Arm collision
     arm_collision = torch.any(torch.norm(contact_forces[:, arm_inds, :], dim=2) > 1.0, dim=1)
-    arm_collision_penalty = arm_collision.int()
+    previlege_rewards = -1. * arm_collision.int()
     #print(arm_collision, collision_cost)
-    rewards = rewards - 5.0 * arm_collision_penalty
+    rewards = rewards - 5.0 * previlege_rewards
     # if torch.any(arm_collision):
     #     print('arm collision')
     
@@ -794,4 +796,4 @@ def compute_franka_reward(
 
     binary_s = torch.where(successes >= 1, torch.ones_like(successes), torch.zeros_like(successes))
     successes = torch.where(reset_buf > 0, binary_s, successes)
-    return rewards, reset_buf, successes
+    return rewards, reset_buf, successes, previlege_rewards

@@ -34,6 +34,8 @@ class RolloutStorage:
         self.dones = torch.zeros(num_transitions_per_env, num_envs, 1, device=self.device).byte()
         # Reward storage for the optimal transport reward
         self.OT_rewards = torch.zeros(num_transitions_per_env, num_envs, 1, device=self.device)
+        # We also need to store the previlege reward: arm collision and other rewards that do not depend on env
+        self.previlege_rewards = torch.zeros(num_transitions_per_env, num_envs, 1, device=self.device)
 
         # For PPO
         self.actions_log_prob = torch.zeros(num_transitions_per_env, num_envs, 1, device=self.device)
@@ -50,7 +52,7 @@ class RolloutStorage:
 
         self.reward_mode = reward_mode
 
-    def add_transitions(self, observations, states, actions, rewards, dones, values, actions_log_prob, mu, sigma):
+    def add_transitions(self, observations, states, actions, rewards, dones, values, actions_log_prob, mu, sigma, previlege_rewards):
         if self.step >= self.num_transitions_per_env:
             raise AssertionError("Rollout buffer overflow")
 
@@ -62,6 +64,7 @@ class RolloutStorage:
         self.states[self.step].copy_(states)
         self.actions[self.step].copy_(actions)
         self.rewards[self.step].copy_(rewards.view(-1, 1)) # T x n_env x 1
+        self.previlege_rewards[self.step].copy_(previlege_rewards.view(-1, 1)) # T x n_env x 1
         self.dones[self.step].copy_(dones.view(-1, 1))
         self.values[self.step].copy_(values)
         self.actions_log_prob[self.step].copy_(actions_log_prob.view(-1, 1))
@@ -72,7 +75,7 @@ class RolloutStorage:
 
     def fill_ot_rewards(self, ot_rewards):
         '''Fill the OT_rewards tensor with the given ot_rewards'''
-        self.OT_rewards.copy_(ot_rewards)
+        self.OT_rewards.copy_(ot_rewards + 5. * self.previlege_rewards)
 
     def clear(self):
         self.step = 0
@@ -104,10 +107,11 @@ class RolloutStorage:
             (flat_dones.new_tensor([-1], dtype=torch.int64), flat_dones.nonzero(as_tuple=False)[:, 0])
         )
         trajectory_lengths = (done_indices[1:] - done_indices[:-1])
-        if self.reward_mode == 'OT':
-            reward_mean = self.OT_rewards.mean()
-        else:
-            reward_mean = self.rewards.mean()
+        #if self.reward_mode == 'OT':
+        #    reward_mean = self.OT_rewards.mean()
+        #else:
+        # Note: We show the GT reward in statistics, not the OT reward
+        reward_mean = self.rewards.mean()
         return trajectory_lengths.float().mean(), reward_mean
 
     def mini_batch_generator(self, num_mini_batches):
