@@ -37,8 +37,8 @@ def train(cfg: omegaconf.DictConfig):
 
     # Change the log dir in the mvp_exp_data folder
     # generate a unique id for the experiment
-    cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/5_23_push_2_obs_OT/" + str(uuid.uuid4())
-    cfg.task.env.numEnvs = 5
+    cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/5_24_push_2_obs/" + str(uuid.uuid4())
+    cfg.task.env.numEnvs = 80
     
     # Set the reward type
     cfg.train.learn.reward_type = "ground_truth"
@@ -51,12 +51,12 @@ def train(cfg: omegaconf.DictConfig):
     print_dict(cfg_dict)
 
     # For test mode only, use only one environment
-    cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/" + "8efe8d72-a710-4c51-8933-7e001e56428e"
-    cfg.test = True
-    cfg.headless = False
-    cfg.resume = 5000
-    cfg.task.env.numEnvs = 1
-    cfg_dict = omegaconf_to_dict(cfg)
+    # cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/" + "8efe8d72-a710-4c51-8933-7e001e56428e"
+    # cfg.test = True
+    # cfg.headless = False
+    # cfg.resume = 5000
+    # cfg.task.env.numEnvs = 1
+    # cfg_dict = omegaconf_to_dict(cfg)
 
     # Create logdir and dump cfg
     if not cfg.test:

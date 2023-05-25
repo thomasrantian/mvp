@@ -780,7 +780,7 @@ def compute_franka_reward(
     arm_collision = torch.any(torch.norm(contact_forces[:, arm_inds, :], dim=2) > 1.0, dim=1)
     previlege_rewards = -1. * arm_collision.int()
     #print(arm_collision, collision_cost)
-    rewards = rewards - 5.0 * previlege_rewards
+    rewards = rewards + 5.0 * previlege_rewards
     # if torch.any(arm_collision):
     #     print('arm collision')
     
