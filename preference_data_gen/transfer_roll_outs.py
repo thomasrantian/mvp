@@ -17,9 +17,9 @@ def copy_file_to_dir(source_dir, target_dir):
             shutil.copy(file_path, target_dir)
 
 # Source directory.
-source_dir = DIR_PATH + '/mvp_exp_data/rl_runs/966dc8be-62b2-40bb-8f1b-cbd9ef5de696/train_sample'
+source_dir = DIR_PATH + '/mvp_exp_data/rl_runs/31d3a18b-9fbf-44fb-a1ff-9d3011c0489c/train_sample'
 # Target directory.
-target_dir = DIR_PATH + '/mvp_exp_data/representation_model_train_data/5_24_franka_pick_push/meta_demo'
+target_dir = DIR_PATH + '/mvp_exp_data/representation_model_train_data/5_25_franka_push/meta_demo'
 
 # if the target directory does not exist, create it.
 if not os.path.exists(target_dir):
@@ -34,14 +34,14 @@ for folder in os.listdir(source_dir):
     if i % 1 == 0:
         folder_path = os.path.join(source_dir, folder)
         # Load the dist_to_expert_min
-        dist_to_expert_min = np.load(os.path.join(folder_path, 'sum_ot_reward.npy'))
+        #dist_to_expert_min = np.load(os.path.join(folder_path, 'sum_ot_reward.npy'))
         # Load the reward
         sum_reward = np.load(os.path.join(folder_path, 'sum_true_dense_reward.npy'))
         # Load the reward hist
         reward_hist = np.load(os.path.join(folder_path, 'true_dense_reward_hist.npy'))
         #if True:
-        #if sum_reward < -30:
-        if abs(dist_to_expert_min) < 0.8:
+        if sum_reward > -35:
+        #if abs(dist_to_expert_min) < 0.2 and sum_reward < -45:
             new_folder_path = os.path.join(target_dir, str(n_file))
             os.makedirs(new_folder_path)
             # Copy every file in the folder to the new folder.
