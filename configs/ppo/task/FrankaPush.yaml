@@ -6,7 +6,7 @@ env:
   episodeLength: 45
 
   object_pos_init: [0.65, 0.0]
-  object_pos_delta: [0.00, 0.1]
+  object_pos_delta: [0.00, 0.0]
 
   goal_height: 0.8
 

@@ -14,8 +14,8 @@ from representation_alignment_util import *
 sequence_length = 45
 
 # Define the data directory
-contrastive_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_23_franka_pick_push/contrastive_ranking_triplet'
-equal_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_23_franka_pick_push/equal_ranking_triplet'
+contrastive_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_24_franka_pick_push/contrastive_ranking_triplet'
+equal_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_24_franka_pick_push/equal_ranking_triplet'
 
 # Prepare the train and eval indexs
 contrastive_ranking_data_size = len(os.listdir(contrastive_ranking_data_dir))
@@ -35,7 +35,7 @@ train_equal_ranking_indexs = equal_indexs[0:train_size]
 eval_equal_ranking_indexs = equal_indexs[train_size:]
 
 
-enable_equal_ranking = False
+enable_equal_ranking = True
 enable_batch_processing = True
 enable_feature_aligner = False
 
@@ -65,13 +65,13 @@ device = torch.device('cuda:0')
 #feature_aligner = FeatureAligner(sequence_length=sequence_length, embed_dim=32, n_heads=1, n_layers=1, device=device).cuda()
 
 # The batch size used for the training
-set_batch_size = 5
+set_batch_size = 4
 sinkorn_layer = OptimalTransportLayer(gamma = 1)
 
 if enable_feature_aligner:
     optimizer = torch.optim.Adam(list(feature_aligner.parameters()) + list(obs_encoder.parameters()), lr=1e-4)
 else:
-    optimizer = torch.optim.Adam(obs_encoder.parameters(), lr=1)
+    optimizer = torch.optim.Adam(obs_encoder.parameters(), lr=1e-2)
 
 # To do: move them to util function
 def eval_batch(eval_contrastive_ranking_indexs, eval_equal_ranking_indexs):
@@ -203,5 +203,5 @@ for epoch in range(100):
         best_eval_loss = val_loss
         if enable_feature_aligner:
             torch.save(feature_aligner.state_dict(), '430_feature_aligner_weight_with_aligner.pt')
-        torch.save(obs_encoder.state_dict(), 'frankapick_obs_encoder.pt')
+        torch.save(obs_encoder.state_dict(), 'frankapush_obs_encoder.pt')
         print('Model saved.')

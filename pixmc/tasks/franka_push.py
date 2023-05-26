@@ -106,8 +106,10 @@ class FrankaPush(BaseTask):
         # Default franka dof pos
         self.franka_default_dof_pos = to_torch(
             #[1.157, -1.066, -0.155, -2.239, -1.841, 1.003, 0.469, 0.001, 0.001], device=self.device
-            [1.2765e+00, -9.1308e-01, -3.4194e-01, -2.4059e+00, -1.6185e+00,
-            1.2260e+00,  6.0274e-01,  8.9237e-06,  4.0000e-02], device=self.device
+            #[1.2765e+00, -9.1308e-01, -3.4194e-01, -2.4059e+00, -1.6185e+00,
+            #1.2260e+00,  6.0274e-01,  8.9237e-06,  4.0000e-02], device=self.device
+            [1.0373e+00, -9.8524e-01, -3.2429e-01, -2.6312e+00, -1.3451e+00,
+            1.3418e+00,  8.8256e-01,  0.0000e+00,  4.0000e-02], device=self.device
         )
 
         # Dof state slices
@@ -727,7 +729,7 @@ class FrankaPush(BaseTask):
         #     self.third_person_cam_image_id += 1
 
 
-#@torch.jit.script
+@torch.jit.script
 def compute_franka_reward(
     reset_buf: Tensor, progress_buf: Tensor, successes: Tensor, actions: Tensor,
     lfinger_grasp_pos: Tensor, rfinger_grasp_pos: Tensor, object_pos: Tensor, to_height: Tensor,
