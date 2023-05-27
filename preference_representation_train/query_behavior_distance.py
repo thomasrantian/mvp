@@ -46,15 +46,15 @@ obs_encoder = Encoder(
     freeze=encoder_cfg["freeze"],
     emb_dim=emb_dim
 ).cpu()
-obs_encoder.load_state_dict(torch.load('/home/thomastian/workspace/mvp/frankapush_obs_encoder.pt'))
+obs_encoder.load_state_dict(torch.load('/home/thomastian/workspace/mvp_exp_data/mae_encoders/frankapush_obs_encoder.pt'))
 # Set the obs_encoder to train mode
 obs_encoder.eval()
 
-sample_a = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_24_franka_pick_push/contrastive_ranking_triplet/1/positive'
-sample_b = '/home/thomastian/workspace/mvp_exp_data/rl_runs/5_25_push_2_obs_OT/377422e0-62fb-468e-93fb-beaef6ed6050/train_sample/146'
+sample_a = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_25_franka_push/contrastive_ranking_triplet/1/positive'
+sample_b = '/home/thomastian/workspace/mvp_exp_data/rl_runs/5_25_push_2_obs_OT/0cd99049-83e1-4f42-9194-e794c45d286c/train_sample/213'
 
-#sample_a = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_24_franka_pick_push/contrastive_ranking_triplet/1/positive'
-#sample_b = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_24_franka_pick_push/contrastive_ranking_triplet/1/negative'
+# sample_a = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_25_franka_push/contrastive_ranking_triplet/6/positive'
+# sample_b = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_25_franka_push/contrastive_ranking_triplet/33/negative'
 
 
 sample_a_embs = get_demo_embs(sample_a)

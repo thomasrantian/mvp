@@ -111,7 +111,7 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
                 p.requires_grad = False
 
         _freeze_module(self.patch_embed)
-        _freeze_module(self.blocks)
+        _freeze_module(self.blocks[:-1])
         _freeze_module(self.norm)
         
         trainable_params = []

@@ -6,7 +6,7 @@ env:
   episodeLength: 45
 
   object_pos_init: [0.65, 0.0]
-  object_pos_delta: [0.00, 0.0]
+  object_pos_delta: [0.05, 0.05]
 
   goal_height: 0.8
 
@@ -19,7 +19,7 @@ env:
   cam:
     w: 298
     h: 224
-    fov: 80
+    fov: 90
     ss: 2
     loc_p: [0.04, 0.0, 0.045]
     loc_r: [180, -90.0, 0.0]

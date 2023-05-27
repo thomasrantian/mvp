@@ -14,8 +14,8 @@ from representation_alignment_util import *
 sequence_length = 45
 
 # Define the data directory
-contrastive_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_24_franka_pick_push/contrastive_ranking_triplet'
-equal_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_24_franka_pick_push/equal_ranking_triplet'
+contrastive_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_26_franka_push/contrastive_ranking_triplet'
+equal_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_26_franka_push/equal_ranking_triplet'
 
 # Prepare the train and eval indexs
 contrastive_ranking_data_size = len(os.listdir(contrastive_ranking_data_dir))
@@ -35,7 +35,7 @@ train_equal_ranking_indexs = equal_indexs[0:train_size]
 eval_equal_ranking_indexs = equal_indexs[train_size:]
 
 
-enable_equal_ranking = True
+enable_equal_ranking = False
 enable_batch_processing = True
 enable_feature_aligner = False
 
@@ -71,7 +71,7 @@ sinkorn_layer = OptimalTransportLayer(gamma = 1)
 if enable_feature_aligner:
     optimizer = torch.optim.Adam(list(feature_aligner.parameters()) + list(obs_encoder.parameters()), lr=1e-4)
 else:
-    optimizer = torch.optim.Adam(obs_encoder.parameters(), lr=1e-2)
+    optimizer = torch.optim.Adam(obs_encoder.parameters(), lr=1e-3)
 
 # To do: move them to util function
 def eval_batch(eval_contrastive_ranking_indexs, eval_equal_ranking_indexs):
@@ -152,12 +152,12 @@ def get_batch_ot_reward(current_batch, sequence_length, batch_process):
 def compute_ot_alignment_loss(current_batch_contrastive, current_batch_equal):
     batch_ot_reward_positive_neutral, batch_ot_reward_positive_negative = get_batch_ot_reward(current_batch_contrastive, sequence_length, enable_batch_processing)
     # Compute the loss for the contrastive ranking (negative probability of positive)
-    batch_loss_contrastive =  torch.norm(1.0 -torch.exp(batch_ot_reward_positive_neutral) / (torch.exp(batch_ot_reward_positive_neutral) + torch.exp(batch_ot_reward_positive_negative))) # B x 1
+    batch_loss_contrastive =  torch.sum(1.0 -torch.exp(batch_ot_reward_positive_neutral) / (torch.exp(batch_ot_reward_positive_neutral) + torch.exp(batch_ot_reward_positive_negative))) # B x 1
     if enable_equal_ranking:
         # Extract batch from contrastive train data
         batch_ot_reward_positive_neutral, batch_ot_reward_positive_negative = get_batch_ot_reward(current_batch_equal, sequence_length, enable_batch_processing)
         # Compute the loss for the equal ranking
-        batch_loss_equal =  torch.norm(0.5 - torch.exp(batch_ot_reward_positive_neutral) / (torch.exp(batch_ot_reward_positive_neutral) + torch.exp(batch_ot_reward_positive_negative))) # B x 1
+        batch_loss_equal =  torch.sum(0.5 - torch.exp(batch_ot_reward_positive_neutral) / (torch.exp(batch_ot_reward_positive_neutral) + torch.exp(batch_ot_reward_positive_negative))) # B x 1
     else:
         batch_loss_equal = batch_loss_contrastive 
     
@@ -168,7 +168,7 @@ def compute_ot_alignment_loss(current_batch_contrastive, current_batch_equal):
 
 best_eval_loss = 10000
 
-for epoch in range(100):
+for epoch in range(20):
     running_loss = 0.0
     num_triplets_evaled = 0
     

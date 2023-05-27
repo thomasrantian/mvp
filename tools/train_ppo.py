@@ -26,7 +26,7 @@ def train(cfg: omegaconf.DictConfig):
     #assert cfg.num_gpus == 1
     
     # Change the num_gpu_here
-    cfg.num_gpus = 1
+    cfg.num_gpus = 8
     # Set up distributed env
     if cfg.num_gpus > 1:
         dist.init_process_group("nccl")
@@ -41,7 +41,7 @@ def train(cfg: omegaconf.DictConfig):
     cfg.task.env.numEnvs = 10
     
     # Set the reward type
-    cfg.train.learn.reward_type = "OT"
+    cfg.train.learn.reward_type = "ground_truth"
      
     # Parse the config
     cfg_dict = omegaconf_to_dict(cfg)
