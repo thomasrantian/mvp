@@ -75,7 +75,7 @@ class RolloutStorage:
 
     def fill_ot_rewards(self, ot_rewards):
         '''Fill the OT_rewards tensor with the given ot_rewards'''
-        self.OT_rewards.copy_(ot_rewards + 1. * self.previlege_rewards)
+        self.OT_rewards.copy_(2. * ot_rewards + 1. * self.previlege_rewards)
 
     def clear(self):
         self.step = 0

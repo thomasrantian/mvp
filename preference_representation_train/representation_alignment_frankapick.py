@@ -14,8 +14,8 @@ from representation_alignment_util import *
 sequence_length = 45
 
 # Define the data directory
-contrastive_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_26_franka_push/contrastive_ranking_triplet'
-equal_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_26_franka_push/equal_ranking_triplet'
+contrastive_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_27_franka_push/contrastive_ranking_triplet'
+equal_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_27_franka_push/equal_ranking_triplet'
 
 # Prepare the train and eval indexs
 contrastive_ranking_data_size = len(os.listdir(contrastive_ranking_data_dir))
@@ -168,7 +168,7 @@ def compute_ot_alignment_loss(current_batch_contrastive, current_batch_equal):
 
 best_eval_loss = 10000
 
-for epoch in range(20):
+for epoch in range(30):
     running_loss = 0.0
     num_triplets_evaled = 0
     
@@ -203,5 +203,5 @@ for epoch in range(20):
         best_eval_loss = val_loss
         if enable_feature_aligner:
             torch.save(feature_aligner.state_dict(), '430_feature_aligner_weight_with_aligner.pt')
-        torch.save(obs_encoder.state_dict(), 'frankapush_obs_encoder.pt')
+        torch.save(obs_encoder.state_dict(), '/home/thomastian/workspace/mvp_exp_data/mae_encoders/frankapush_obs_encoder.pt')
         print('Model saved.')

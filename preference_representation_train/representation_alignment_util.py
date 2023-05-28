@@ -60,7 +60,7 @@ class Encoder(nn.Module):
         self.freeze = freeze
         self.projector = nn.Linear(gap_dim, emb_dim)
 
-    @torch.no_grad()
+    #@torch.no_grad()
     def forward(self, x):
         feat = self.backbone.extract_feat(x)
         return self.projector(self.backbone.forward_norm(feat)), feat

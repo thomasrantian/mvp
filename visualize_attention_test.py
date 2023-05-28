@@ -71,7 +71,7 @@ def pixel_to_tensor(arr):
     arr = arr.to(device)
     return arr
 
-frame_path = '/home/thomastian/workspace/mvp/mvp_exp_data/attention_test/148.png'
+frame_path = '/home/thomastian/workspace/mvp_old/mvp_exp_data/attention_test/148.png'
 image_observation = Image.open(frame_path)
 image_observation.show()
 image_observation = np.asarray(image_observation)
@@ -93,7 +93,7 @@ h_featmap = 224 // 16
 attentions = attentions.reshape(nh, w_featmap, h_featmap)
 attentions = nn.functional.interpolate(attentions.unsqueeze(0), scale_factor=16, mode="nearest")[0].cpu().numpy()
 
-output_dir = '/home/thomastian/workspace/mvp/mvp_exp_data/attention_test'
+output_dir = '/home/thomastian/workspace/mvp_old/mvp_exp_data/attention_test'
 
 # os.makedirs(args.output_dir, exist_ok=True)
 # torchvision.utils.save_image(torchvision.utils.make_grid(image_observation, normalize=True, scale_each=True), os.path.join(args.output_dir, "img.png"))

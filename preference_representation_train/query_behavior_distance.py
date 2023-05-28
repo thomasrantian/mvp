@@ -50,11 +50,11 @@ obs_encoder.load_state_dict(torch.load('/home/thomastian/workspace/mvp_exp_data/
 # Set the obs_encoder to train mode
 obs_encoder.eval()
 
-sample_a = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_25_franka_push/contrastive_ranking_triplet/1/positive'
-sample_b = '/home/thomastian/workspace/mvp_exp_data/rl_runs/5_25_push_2_obs_OT/0cd99049-83e1-4f42-9194-e794c45d286c/train_sample/213'
+sample_a = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_27_franka_push/contrastive_ranking_triplet/1/positive'
+sample_b = '/home/thomastian/workspace/mvp_exp_data/rl_runs/58c97359-773e-413b-90de-11b24c4d3290/train_sample/51'
 
-# sample_a = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_25_franka_push/contrastive_ranking_triplet/6/positive'
-# sample_b = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_25_franka_push/contrastive_ranking_triplet/33/negative'
+# sample_a = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_27_franka_push/contrastive_ranking_triplet/6/negative'
+# sample_b = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_27_franka_push/contrastive_ranking_triplet/23/neutral'
 
 
 sample_a_embs = get_demo_embs(sample_a)
