@@ -30,7 +30,7 @@ def train(cfg: omegaconf.DictConfig):
     # Set up distributed env
     if cfg.num_gpus > 1:
         dist.init_process_group("nccl")
-        local_rank = dist.get_rank() % cfg.num_gpus
+        local_rank = dist.get_rank() % cfg.num_gpus + 4
         torch.cuda.set_device(local_rank)
     else:
         local_rank = 0
