@@ -165,6 +165,7 @@ class PPO:
                 # load the pretrained weight
                 encoder_path = DIR_PATH + '/mvp_exp_data/mae_encoders/vit_frankapush_obs_encoder.pt'
                 self.preference_encoder.load_state_dict(torch.load(encoder_path))
+                self.preference_encoder.eval()
         if self.encoder_type == 'resnet':
             preference_encoder_cfg = {
                 "num_ctx_frames": 1,
@@ -174,8 +175,8 @@ class PPO:
             }
             self.preference_encoder = models.Resnet18LinearEncoderNet(**preference_encoder_cfg).cuda()
             encoder_path = DIR_PATH + '/mvp_exp_data/mae_encoders/5_27_resnet_franka_push_obs_encoder.pt'
-            self.preference_encoder.load_state_dict(encoder_path))
-        self.preference_encoder.eval()
+            self.preference_encoder.load_state_dict(torch.load(encoder_path))
+            self.preference_encoder.eval()
 
         print('Loaded mvp encoder weight from {}'.format(encoder_path))
         
@@ -306,6 +307,7 @@ class PPO:
                 self.vec_env.task.reset_all()
                 current_obs = self.vec_env.reset()
                 current_states = self.vec_env.get_state()
+                env_0_preference_reward_hist = []
                 # Rollout
                 for _ in range(self.num_transitions_per_env):
                     if self.apply_reset:
@@ -323,12 +325,12 @@ class PPO:
                     # Record the transition
                     obs_in = current_obs_feats if current_obs_feats is not None else current_obs
                     # Extract the previlege_rewards from the infos
-                    previlege_rewards = infos["privilege_rew_buf"]
                     self.storage.add_transitions(
-                        obs_in, current_states, actions, rews, dones, values, actions_log_prob, mu, sigma, previlege_rewards
+                        obs_in, current_states, actions, rews, dones, values, actions_log_prob, mu, sigma, infos["privilege_rew_buf"]
                     )
                     current_obs.copy_(next_obs)
                     current_states.copy_(next_states)
+                    env_0_preference_reward_hist.append(infos["preference_rew_buf"][0].cpu().detach().numpy())
 
                     if self.print_log:
                         cur_reward_sum[:] += rews
@@ -348,6 +350,7 @@ class PPO:
                 rollout_visual_obs_hist = torch.cat(rollout_visual_obs_hist, dim=0)
 
                 # Note: rollout_visual_obs_hist contains raw rgb images with size 224 x 224
+                batch_ot_distance = None
                 if self.reward_type == 'OT':
                 
                     # # we normilize the rollout_visual_obs_hist substracting the mean and divided by the std
@@ -474,7 +477,7 @@ class PPO:
                     torch.distributed.barrier()
                 # Save train rollouts (images, ground truth rewards)
                 if it % 5 == 0:
-                    self.save_rolloutdata(rollout_visual_obs_hist, batch_ot_distance)
+                    self.save_rolloutdata(rollout_visual_obs_hist, batch_ot_distance, env_0_preference_reward_hist)
             
             if self.print_log:
                 self.save(os.path.join(self.log_dir, 'model_{}.pt'.format(num_learning_iterations)))
@@ -522,7 +525,7 @@ class PPO:
             image_tensor = image_tensor[...,::-1]
             cv2.imwrite(out_f, image_tensor)
            
-    def save_rolloutdata(self, rollout_visual_obs_hist, batch_ot_distance):
+    def save_rolloutdata(self, rollout_visual_obs_hist, batch_ot_distance, env_0_preference_reward_hist):
         # define the rollout save folder using the rollout_save_id
         # rollout_visual_obs_hist: (T * num_envs) * 3 * 224 * 224
         # Convert the rollout_visual_obs_hist back to T * num_envs * 3 * 224 * 224
@@ -556,6 +559,8 @@ class PPO:
         np.save(rollout_save_folder + "true_dense_reward_hist.npy", first_env_reward)
         # save the sum reward
         np.save(rollout_save_folder + "sum_true_dense_reward.npy", np.sum(first_env_reward))
+        # Save the ground truth preference reward
+        np.save(rollout_save_folder + "true_pref_reward_hist.npy", env_0_preference_reward_hist)
         # save the sum ot reward
         if self.reward_type == 'OT':
             first_env_ot_reward = np.array(batch_ot_distance[0])

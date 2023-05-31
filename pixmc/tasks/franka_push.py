@@ -182,6 +182,7 @@ class FrankaPush(BaseTask):
         self.extras["successes"] = self.successes
         # Put privilege_rew_buf in extras so that it is saved
         self.extras["privilege_rew_buf"] = self.privilege_rew_buf
+        self.extras["preference_rew_buf"] = self.preference_rew_buf
 
         self.reset(torch.arange(self.num_envs, device=self.device))
 
@@ -396,8 +397,8 @@ class FrankaPush(BaseTask):
                 cam_pos = gymapi.Vec3(0.4, 0.35, 0.55)
                 cam_target = gymapi.Vec3(2.5, -4, -0.0)
                 # Original top view
-                # cam_pos = gymapi.Vec3(0.5, 0.0, 1.2)
-                # cam_target = gymapi.Vec3(0.8, 0.0, -1.5)
+                cam_pos = gymapi.Vec3(0.35, 0.0, 1.1)
+                cam_target = gymapi.Vec3(0.8, 0.0, -1.5)
                 self.gym.set_camera_location(cam_handle, env_ptr, cam_pos, cam_target)
                 self.third_person_cams.append(cam_handle)
                 # Camera tensor
@@ -471,7 +472,7 @@ class FrankaPush(BaseTask):
         self.rfinger_grasp_rot[..., 3] = 1.0
 
     def compute_reward(self, actions):
-      self.rew_buf[:], self.reset_buf[:], self.successes[:], self.privilege_rew_buf[:] = compute_franka_reward(
+      self.rew_buf[:], self.reset_buf[:], self.successes[:], self.privilege_rew_buf[:], self.preference_rew_buf[:] = compute_franka_reward(
             self.reset_buf, self.progress_buf, self.successes, self.actions,
             self.lfinger_grasp_pos, self.rfinger_grasp_pos, self.object_pos, self.to_height,
             self.object_z_init, self.object_dist_reward_scale, self.lift_bonus_reward_scale,
@@ -695,41 +696,6 @@ class FrankaPush(BaseTask):
         # Compute the third person view camera observations
         self.compute_visual_observations()
         
-        
-        # for i in range(self.num_envs):
-        #     # define the vertices of the box
-        #     center_pos = self.avoidance_box_start_position.x
-        #     p1 = gymapi.Vec3(center_pos + self.avoidance_box_size/2, -self.avoidance_box_size/2, 0.401)
-        #     p2 = gymapi.Vec3(center_pos - self.avoidance_box_size/2, -self.avoidance_box_size/2, 0.401)
-        #     p3 = gymapi.Vec3(center_pos - self.avoidance_box_size/2, self.avoidance_box_size/2, 0.401)
-        #     p4 = gymapi.Vec3(center_pos + self.avoidance_box_size/2, self.avoidance_box_size/2, 0.401)
-            
-        #     gymutil.draw_line(p1, p2, gymapi.Vec3(0, 0, 1), self.gym, self.viewer, self.envs[i])
-        #     gymutil.draw_line(p2, p3, gymapi.Vec3(0, 0, 1), self.gym, self.viewer, self.envs[i])
-        #     gymutil.draw_line(p3, p4, gymapi.Vec3(0, 0, 1), self.gym, self.viewer, self.envs[i])
-        #     gymutil.draw_line(p4, p1, gymapi.Vec3(0, 0, 1), self.gym, self.viewer, self.envs[i])
-        
-        # # Same third view camera image in env id 0
-        # if self.save_third_person_view_image:
-            
-        #     self.gym.render_all_camera_sensors(self.sim)
-        #     self.gym.start_access_image_tensors(self.sim)
-        #     crop_l = (self.cam_w - self.im_size) // 2
-        #     crop_r = crop_l + self.im_size
-        #     image_tensor = self.third_person_cam_tensors[0][:, crop_l:crop_r, :3].permute(2, 0, 1).float() / 255
-        #     image_tensor = (image_tensor - self.im_mean) / self.im_std
-        #     self.gym.end_access_image_tensors(self.sim)
-        #     #print(image_tensor.shape)
-        #     out_f = DIR_PATH + '/mvp_exp_data/rollout_images_save/' + "%d.png" % self.third_person_cam_image_id
-        #     # check if the folder exists
-        #     if not os.path.exists(DIR_PATH + '/mvp_exp_data/rollout_images_save/'):
-        #         os.makedirs(DIR_PATH + '/mvp_exp_data/rollout_images_save/')
-        #     #self.gym.write_camera_image_to_file(self.sim, self.envs[0], self.third_person_cams[0], gymapi.IMAGE_COLOR, out_f)
-        #     ttt = image_tensor.cpu().numpy()
-        #     ttt = np.moveaxis(ttt, 0, -1) * 255
-        #     if self.third_person_cam_image_id > 0:
-        #         cv2.imwrite(out_f, ttt)
-        #     self.third_person_cam_image_id += 1
 
 
 @torch.jit.script
@@ -740,7 +706,7 @@ def compute_franka_reward(
     goal_dist_reward_scale: float, goal_bonus_reward_scale: float, action_penalty_scale: float,
     contact_forces: Tensor, arm_inds: Tensor, max_episode_length: int, collision_penalty: Tensor,
     objects_distance: Tensor, avoidance_box_pos: Tensor
-) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
+) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
 
     # Left finger to object distance
     lfo_d = torch.norm(object_pos - lfinger_grasp_pos, p=2, dim=-1)
@@ -760,7 +726,7 @@ def compute_franka_reward(
     lift_bonus_reward = torch.zeros_like(lfo_dist_reward)
     lift_bonus_reward = torch.where(object_above, lift_bonus_reward + 0.5, lift_bonus_reward)
 
-    # Object to goal height distance
+    # Object to goal distance
     og_d_x = torch.maximum(torch.abs(object_pos[:, 0].unsqueeze(1) - 0.4), torch.abs(avoidance_box_pos[:, 0].unsqueeze(1) - 0.4)).squeeze()
     og_d = torch.norm(to_height, p=2, dim=-1)
     og_dist_reward = torch.zeros_like(lfo_dist_reward)
@@ -770,8 +736,11 @@ def compute_franka_reward(
     # Regularization on the actions
     action_penalty = torch.sum(actions ** 2, dim=-1)
     
-    rewards = -2.0 * og_d - 3.0 * objects_distance.squeeze() - 0.5 * lfo_d - 0.5 * rfo_d - action_penalty_scale * action_penalty
+    preference_rewards = og_d
+
+    rewards = -2.0 * preference_rewards - 3.0 * objects_distance.squeeze() - 0.5 * lfo_d - 0.5 * rfo_d - action_penalty_scale * action_penalty
     rewards = rewards - lift_bonus_reward
+    
     # Goal reached
     goal_height = 0.8 - 0.4  # absolute goal height - table height
     #s = torch.where(successes < 1.0, torch.zeros_like(successes), successes)
@@ -801,4 +770,4 @@ def compute_franka_reward(
 
     binary_s = torch.where(successes >= 1, torch.ones_like(successes), torch.zeros_like(successes))
     successes = torch.where(reset_buf > 0, binary_s, successes)
-    return rewards, reset_buf, successes, previlege_rewards
+    return rewards, reset_buf, successes, previlege_rewards, preference_rewards
