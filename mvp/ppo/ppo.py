@@ -22,8 +22,10 @@ import cv2
 import numpy as np
 import sys
 sys.path.append("...")
-from preference_representation_train.representation_alignment_util import *
+#from preference_representation_train.representation_alignment_util import *
 from ddn.ddn.pytorch.optimal_transport import sinkhorn, OptimalTransportLayer
+from preference_representation_train.resnet_representation_alignment_util import *
+from preference_representation_train import models
 # Find the path to the parent directory of the folder containing this file.
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 # exlucde the last folder
@@ -58,7 +60,8 @@ class PPO:
         print_log=True,
         apply_reset=False,
         num_gpus=1,
-        reward_type="ground_truth"
+        reward_type="ground_truth",
+        encoder_type="resnet",
     ):
 
         if not isinstance(vec_env.observation_space, Space):
@@ -148,20 +151,33 @@ class PPO:
         self.save_camera_image = False
 
         # Initialize and freeze the preference encoder
-        preference_encoder_cfg = {'name': 'vits-mae-hoi', 'pretrain_dir':
-               DIR_PATH + '/mvp_exp_data/mae_encoders', 'freeze': True, 'emb_dim': 128}
-        if self.reward_type == 'OT':
-            self.preference_encoder = Encoder(
-                model_name=preference_encoder_cfg["name"],
-                pretrain_dir=preference_encoder_cfg["pretrain_dir"],
-                freeze=preference_encoder_cfg["freeze"],
-                emb_dim=preference_encoder_cfg["emb_dim"],
-            ).cuda()
-            # load the pretrained weight
-            self.preference_encoder.load_state_dict(torch.load(DIR_PATH + '/mvp_exp_data/mae_encoders/frankapush_obs_encoder.pt'))
-        
-        print('Loaded mvp encoder weight from {}'.format('TBD'))
-        # To do: Load the preference encoder weight here once it is ready
+        self.encoder_type = encoder_type
+        if self.encoder_type == 'vit':
+            preference_encoder_cfg = {'name': 'vits-mae-hoi', 'pretrain_dir':
+                DIR_PATH + '/mvp_exp_data/mae_encoders', 'freeze': True, 'emb_dim': 128}
+            if self.reward_type == 'OT':
+                self.preference_encoder = Encoder(
+                    model_name=preference_encoder_cfg["name"],
+                    pretrain_dir=preference_encoder_cfg["pretrain_dir"],
+                    freeze=preference_encoder_cfg["freeze"],
+                    emb_dim=preference_encoder_cfg["emb_dim"],
+                ).cuda()
+                # load the pretrained weight
+                encoder_path = DIR_PATH + '/mvp_exp_data/mae_encoders/vit_frankapush_obs_encoder.pt'
+                self.preference_encoder.load_state_dict(torch.load(encoder_path))
+        if self.encoder_type == 'resnet':
+            preference_encoder_cfg = {
+                "num_ctx_frames": 1,
+                "normalize_embeddings": False,
+                "learnable_temp": False,
+                "embedding_size": 32,
+            }
+            self.preference_encoder = models.Resnet18LinearEncoderNet(**preference_encoder_cfg).cuda()
+            encoder_path = DIR_PATH + '/mvp_exp_data/mae_encoders/5_27_resnet_franka_push_obs_encoder.pt'
+            self.preference_encoder.load_state_dict(encoder_path))
+        self.preference_encoder.eval()
+
+        print('Loaded mvp encoder weight from {}'.format(encoder_path))
         
         # Initialize the sinkorn layer
         self.sinkorn_layer = OptimalTransportLayer(gamma = 1).cuda()
@@ -170,6 +186,9 @@ class PPO:
         self.rescale_ot_reward = False
         self.rescale_factor_OT = 1.0
         self.expert_demo_embs = self.get_expert_demo_embs( DIR_PATH + '/mvp_exp_data/behavior_train_data/5_27_franka_push/', 6)
+
+        # Load a pre-trained model
+        #self.load('/home/thomastian/workspace/mvp_exp_data/rl_runs/5_28_push_2_obs_OT/f64a994e-ff9d-4f02-9eb8-a04db73d6707/model_5950.pt')
 
     def get_expert_demo_embs(self, data_set_dir, n_demo_needed):
         '''Get the expert demo embeddings from the data set dir.'''
@@ -180,8 +199,13 @@ class PPO:
         while n_demo_had < n_demo_needed:
             demo_path = os.path.join(data_set_dir, all_demo_id_dir[current_demo_id_idx])
             print('demo_path', demo_path)
-            current_demo = extract_frames_from_dir(demo_path, self.num_transitions_per_env).cuda() # T x 3 x 224 x 224
-            current_demo_embs,_ = self.preference_encoder(current_demo) # T x 128
+            if self.encoder_type == 'vit':
+                # Extract the normalized images from the demo path
+                current_demo = extract_frames_from_dir_vit(demo_path, self.num_transitions_per_env).cuda() # T x 3 x 224 x 224
+                current_demo_embs,_ = self.preference_encoder(current_demo) # T x 128
+            if self.encoder_type == 'resnet':
+                current_demo = extract_frames_from_dir_resnet(demo_path, self.num_transitions_per_env).cuda() # T x 3 x 112 x 112
+                current_demo_embs = self.preference_encoder.infer(current_demo.unsqueeze(0)).embs.cuda() # T x 32 
             # if self.use_feature_aligner:
             #     current_demo_embs = self.feature_aligner(current_demo_embs.cuda()).detach().cpu() # 1 x T x 32
             n_demo_had += 1 
@@ -197,7 +221,7 @@ class PPO:
 
     def load(self, path):
         self.actor_critic.load_state_dict(torch.load(path, map_location="cpu"))
-        self.current_learning_iteration = int(path.split("_")[-1].split(".")[0])
+        #self.current_learning_iteration = int(path.split("_")[-1].split(".")[0])
         self.actor_critic.train()
 
     def save(self, path):
@@ -290,11 +314,10 @@ class PPO:
                     # Compute the action
                     actions, actions_log_prob, values, mu, sigma, current_obs_feats = \
                         self.actor_critic.act(current_obs, current_states)
-                    # if it < 10, we do random actions
-                    #if it < 10:
-                    #    actions = torch.rand(actions.shape, device=self.device) * 0.6
-                    # Step the vec_environment
-                    #actions[:, -2:] *= 0.5
+                    # Randomize the actions for exploration
+                    if it < 50:
+                      actions = torch.rand(actions.shape, device=self.device) - 0.5
+                      actions *= 2.0
                     next_obs, rews, dones, infos = self.vec_env.step(actions) # next_obs is from the obs_buf
                     next_states = self.vec_env.get_state()
                     # Record the transition
@@ -321,17 +344,28 @@ class PPO:
                     image_obs = self.vec_env.get_visual_obs() # (num_envs, 3, 224, 224)
                     rollout_visual_obs_hist.append(image_obs)                
                 #After one roll-out, we compute the OT reward, and modify the storage                            
-                # 1) Pass the rollout image observations to the preference encoder
                 # convert the rollout_visual_obs_hist to (T * num_envs) * 3 * 224 * 224
                 rollout_visual_obs_hist = torch.cat(rollout_visual_obs_hist, dim=0)
-                
+
+                # Note: rollout_visual_obs_hist contains raw rgb images with size 224 x 224
                 if self.reward_type == 'OT':
                 
+                    # # we normilize the rollout_visual_obs_hist substracting the mean and divided by the std
+                    # rollout_visual_obs_hist_normed = (rollout_visual_obs_hist / 255. - self.vec_env.task.im_mean) / self.vec_env.task.im_std
+                    # #print(rollout_visual_obs_hist.shape)
+                    # # pass the rollout_visual_obs_hist to the preference encoder
+                    # rollout_visual_emd_hist, _ = self.preference_encoder(rollout_visual_obs_hist_normed) # (T * num_envs) * 128
                     # we normilize the rollout_visual_obs_hist substracting the mean and divided by the std
-                    rollout_visual_obs_hist_normed = (rollout_visual_obs_hist / 255. - self.vec_env.task.im_mean) / self.vec_env.task.im_std
-                    #print(rollout_visual_obs_hist.shape)
+
+                    # Save the rollout_visual_obs_hist to a temp folder and then read the image again[for debug]
+                    self.save_rollout_visual_obs_hist_to_temp(rollout_visual_obs_hist)
+                    rollout_visual_obs_hist_normed = self.read_rollout_visual_obs_hist_from_temp()
+                                        
                     # pass the rollout_visual_obs_hist to the preference encoder
-                    rollout_visual_emd_hist, _ = self.preference_encoder(rollout_visual_obs_hist_normed) # (T * num_envs) * 128
+                    if self.encoder_type == 'resnet':
+                        rollout_visual_emd_hist = self.preference_encoder.infer(rollout_visual_obs_hist_normed.unsqueeze(0)).embs.cuda() # (T * num_envs) * 32
+                    if self.encoder_type == 'vit':
+                        rollout_visual_emd_hist, _ = self.preference_encoder(rollout_visual_obs_hist_normed) # (T * num_envs) * 128
                     # Convert the rollout_visual_emd_hist back to T * num_envs * 128
                     rollout_visual_emd_hist = rollout_visual_emd_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, -1)
                     # Convert the rollout_visual_emd_hist back to num_envs * T * 128
@@ -388,7 +422,15 @@ class PPO:
                     
                     # # 3) Modify the storage
                     # Augment the OT reward with the safety reward
-                    self.storage.fill_ot_rewards(batch_ot_reward)            
+                    batch_ot_distance = torch.sum(batch_ot_reward, dim=0).detach().cpu().numpy() # B x 1
+                    self.storage.fill_ot_rewards(batch_ot_reward)
+                    # iterate over the batch_ot_distance
+                    for i in range(self.vec_env.num_envs):
+                        if abs(batch_ot_distance[i]) < 0.1:
+                            print('Found a good trajectory')
+                            # save the good trajectory
+                            self.save_one_rolloutdata(rollout_visual_obs_hist, i)
+                                   
                 if self.print_log:
                     rewbuffer.extend(reward_sum)
                     lenbuffer.extend(episode_length)
@@ -414,6 +456,9 @@ class PPO:
                     lenbuffer_mean = statistics.mean(lenbuffer) if rewbuffer_len > 0 else 0
                     successbuffer_mean = statistics.mean(successbuffer) if rewbuffer_len > 0 else 0
                     if self.reward_type == 'OT':
+                        # We only average the last 10 episodes
+                        if len(mean_batch_distance_expert_hist) > 10:
+                            mean_batch_distance_expert_hist = mean_batch_distance_expert_hist[-10:]
                         mean_dist_2_expert = np.mean(mean_batch_distance_expert_hist)
                     else:
                         mean_dist_2_expert = 0
@@ -429,17 +474,62 @@ class PPO:
                     torch.distributed.barrier()
                 # Save train rollouts (images, ground truth rewards)
                 if it % 5 == 0:
-                    self.save_rolloutdata(rollout_visual_obs_hist)
+                    self.save_rolloutdata(rollout_visual_obs_hist, batch_ot_distance)
             
             if self.print_log:
                 self.save(os.path.join(self.log_dir, 'model_{}.pt'.format(num_learning_iterations)))
                 self.writer.close()
     
-    def save_rolloutdata(self, rollout_visual_obs_hist):
+    def save_rollout_visual_obs_hist_to_temp(self, rollout_visual_obs_hist):
+        # rollout_visual_obs_hist: (T * num_envs) * 3 * img_size * img_size
+        rollout_save_folder = self.log_dir + "/roll_out_temp/"
+        if not os.path.exists(rollout_save_folder):
+            os.makedirs(rollout_save_folder)
+        for image_idx in range(rollout_visual_obs_hist.shape[0]):
+            out_f = rollout_save_folder + "%d.png" % image_idx
+            image_tensor = rollout_visual_obs_hist[image_idx,:,:,:].cpu().detach().numpy()
+            image_tensor = np.moveaxis(image_tensor, 0, -1)
+            # convert rgb to bgr
+            image_tensor = image_tensor[...,::-1]
+            cv2.imwrite(out_f, image_tensor)
+
+    def read_rollout_visual_obs_hist_from_temp(self):
+        if self.encoder_type == 'resnet':
+            rollout_visual_obs_hist = extract_frames_from_dir_resnet(self.log_dir + '/roll_out_temp/', self.num_transitions_per_env * self.vec_env.num_envs).cuda() # (T x n_env) x 3 x 224 x 224
+        if self.encoder_type == 'vit':
+            rollout_visual_obs_hist = extract_frames_from_dir_vit(self.log_dir + '/roll_out_temp/', self.num_transitions_per_env * self.vec_env.num_envs).cuda()
+        return rollout_visual_obs_hist
+    
+    
+    def save_one_rolloutdata(self, rollout_visual_obs_hist, env_id):
+        #if self.encoder_type == 'vit':
+        rollout_visual_obs_hist_ = rollout_visual_obs_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, 3, 224, 224)
+        #if self.encoder_type == 'resnet':
+        #    rollout_visual_obs_hist_ = rollout_visual_obs_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, 3, 112, 112)
+        rollout_save_folder = self.log_dir + "/good_sample/"
+        if not os.path.exists(rollout_save_folder):
+            os.makedirs(rollout_save_folder)
+        # find the total number of files in the folder
+        num_files = len(os.listdir(rollout_save_folder))
+        rollout_save_folder = rollout_save_folder + "%d/" % num_files
+        if not os.path.exists(rollout_save_folder):
+            os.makedirs(rollout_save_folder)
+        for t in range(self.num_transitions_per_env):
+            out_f = rollout_save_folder + "%d.png" % t
+            image_tensor = rollout_visual_obs_hist_[t,env_id,:,:,:].cpu().detach().numpy()
+            image_tensor = np.moveaxis(image_tensor, 0, -1)
+            # convert rgb to bgr
+            image_tensor = image_tensor[...,::-1]
+            cv2.imwrite(out_f, image_tensor)
+           
+    def save_rolloutdata(self, rollout_visual_obs_hist, batch_ot_distance):
         # define the rollout save folder using the rollout_save_id
         # rollout_visual_obs_hist: (T * num_envs) * 3 * 224 * 224
         # Convert the rollout_visual_obs_hist back to T * num_envs * 3 * 224 * 224
+        #if self.encoder_type == 'vit':
         rollout_visual_obs_hist = rollout_visual_obs_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, 3, 224, 224)
+        #if self.encoder_type == 'resnet':
+        #    rollout_visual_obs_hist = rollout_visual_obs_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, 3, 112, 112)
         rollout_save_folder = self.log_dir + "/train_sample/"
         if not os.path.exists(rollout_save_folder):
             os.makedirs(rollout_save_folder)
@@ -450,7 +540,7 @@ class PPO:
             os.makedirs(rollout_save_folder)
         # for simplicity, we only save the first env
         first_env_reward = []
-        first_env_ot_reward = []
+        #first_env_ot_reward = []
         for t in range(self.num_transitions_per_env):
             out_f = rollout_save_folder + "%d.png" % t
             image_tensor = rollout_visual_obs_hist[t,0,:,:,:].cpu().detach().numpy()
@@ -459,8 +549,8 @@ class PPO:
             image_tensor = image_tensor[...,::-1]
             cv2.imwrite(out_f, image_tensor)
             first_env_reward.append(self.storage.rewards[t, 0, 0].cpu().detach().numpy())
-            if self.reward_type == 'OT':
-                first_env_ot_reward.append(self.storage.OT_rewards[t, 0, 0].cpu().detach().numpy())
+            #if self.reward_type == 'OT':
+            #    first_env_ot_reward.append(self.storage.OT_rewards[t, 0, 0].cpu().detach().numpy())
         # save the ground first_env_reward as a numpy array
         first_env_reward = np.array(first_env_reward)
         np.save(rollout_save_folder + "true_dense_reward_hist.npy", first_env_reward)
@@ -468,8 +558,8 @@ class PPO:
         np.save(rollout_save_folder + "sum_true_dense_reward.npy", np.sum(first_env_reward))
         # save the sum ot reward
         if self.reward_type == 'OT':
-            first_env_ot_reward = np.array(first_env_ot_reward)
-            np.save(rollout_save_folder + "sum_ot_reward.npy", np.sum(first_env_ot_reward)/self.rescale_factor_OT)
+            first_env_ot_reward = np.array(batch_ot_distance[0])
+            np.save(rollout_save_folder + "sum_ot_reward.npy", first_env_ot_reward)
             
     
     def log(
@@ -530,8 +620,8 @@ class PPO:
                        f"""{'Total time:':>{pad}} {self.tot_time:.2f}s\n"""
                        f"""{'ETA:':>{pad}} {self.tot_time / (it + 1) * (
                                num_learning_iterations - it):.1f}s\n""")
-        with open(DIR_PATH + '/mvp/train_log.txt', 'a') as f:
-            f.write(log_string)
+        # with open(DIR_PATH + '/mvp/train_log.txt', 'a') as f:
+        #     f.write(log_string)
         print(log_string)
 
     def update(self, cur_iter, max_iter):

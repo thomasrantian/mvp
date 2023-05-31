@@ -61,7 +61,7 @@ obs_encoder = Encoder(
 # Set the obs_encoder to train mode
 obs_encoder.eval()
 
-test_image_path = '/home/thomastian/workspace/temp/42.png'
+test_image_path = '/home/thomastian/workspace/temp/1.png'
 test_image = Image.open(test_image_path)
 test_image_tensor = pixel_to_tensor(np.asarray(test_image))[0].cpu().float()
 

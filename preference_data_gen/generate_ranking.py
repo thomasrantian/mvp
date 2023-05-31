@@ -27,7 +27,7 @@ meta_data_dir = os.path.join(data_dir, 'meta_demo')
 # Find the total file number in the directory.
 total_available_demo = len(os.listdir(meta_data_dir))
 data_gen_mode = 'contrastive_ranking_triplet'
-data_gen_mode = 'equal_ranking_triplet'
+#data_gen_mode = 'equal_ranking_triplet'
 
 
 # Go through every demo in the meta data directory and save the reward to a list.
@@ -50,8 +50,8 @@ if data_gen_mode == 'equal_ranking_triplet':
         os.makedirs(equal_ranking_data_save_dir)
 
     num_triplet_found = 0
-    start_folder_name = 0
-    while num_triplet_found < 100:
+    start_folder_name = 25
+    while num_triplet_found < 25:
         # Random sample three rollouts from the data directory.
         demo_list = np.random.choice(total_available_demo, 3, replace=False)
         # Extract the reward.npy file from each rollout.
@@ -67,8 +67,8 @@ if data_gen_mode == 'equal_ranking_triplet':
         last_step_reward_list = np.array(last_step_reward_list)
         # Sort the reward list and the demo list based on the reward. The first one is the lowest reward.
         reward_list, demo_list, last_step_reward_list = zip(*sorted(zip(reward_list, demo_list, last_step_reward_list))) 
-        #if reward_list[0] < -40 and reward_list[1] < -40 and reward_list[2] < -40:
-        if reward_list[0] > -35 and reward_list[1] > -35 and  reward_list[2] > -35:
+        if reward_list[0] < -45 and reward_list[1] < -45 and reward_list[2] < -45:
+        #if reward_list[0] > -35 and reward_list[1] > -35 and  reward_list[2] > -35:
             # Create a directory to store the three rollouts. The directory name id the number of triplet found.
             triplet_save_dir = os.path.join(equal_ranking_data_save_dir, str(start_folder_name))
             # Check if the dir exists.If not, create it. If exists, delete it and create a new one.
@@ -99,7 +99,7 @@ if data_gen_mode == 'contrastive_ranking_triplet':
     num_triplet_found = 0
     start_folder_name = 0
     reward_diff_threshold = 8
-    while num_triplet_found < 100:
+    while num_triplet_found < 50:
         # Random sample three rollouts from the data directory.
         demo_list = np.random.choice(total_available_demo, 3, replace=False)
         # Extract the reward.npy file from each rollout.

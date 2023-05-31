@@ -395,6 +395,9 @@ class FrankaPush(BaseTask):
                 # Manually set camera position
                 cam_pos = gymapi.Vec3(0.4, 0.35, 0.55)
                 cam_target = gymapi.Vec3(2.5, -4, -0.0)
+                # Original top view
+                # cam_pos = gymapi.Vec3(0.5, 0.0, 1.2)
+                # cam_target = gymapi.Vec3(0.8, 0.0, -1.5)
                 self.gym.set_camera_location(cam_handle, env_ptr, cam_pos, cam_target)
                 self.third_person_cams.append(cam_handle)
                 # Camera tensor

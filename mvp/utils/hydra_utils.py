@@ -214,6 +214,7 @@ def process_ppo(env, cfg, cfg_dict, logdir, cptdir):
         apply_reset=False,
         num_gpus=cfg.num_gpus,
         reward_type=cfg_dict["train"]["learn"]["reward_type"],
+        encoder_type=cfg_dict["train"]["learn"]["encoder_type"],
     )
 
     # TODO: improve checkpointing and avoid overwriting logs

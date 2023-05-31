@@ -46,21 +46,21 @@ obs_encoder = Encoder(
     freeze=encoder_cfg["freeze"],
     emb_dim=emb_dim
 ).cpu()
-obs_encoder.load_state_dict(torch.load('/home/thomastian/workspace/mvp_exp_data/mae_encoders/frankapush_obs_encoder.pt'))
+obs_encoder.load_state_dict(torch.load('/home/thomastian/workspace/mvp_exp_data/mae_encoders/5_28_frankapush_obs_encoder.pt'))
 # Set the obs_encoder to train mode
 obs_encoder.eval()
 
 sample_a = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_27_franka_push/contrastive_ranking_triplet/1/positive'
-sample_b = '/home/thomastian/workspace/mvp_exp_data/rl_runs/58c97359-773e-413b-90de-11b24c4d3290/train_sample/51'
+sample_b = '/home/thomastian/workspace/mvp_exp_data/rl_runs/5_28_push_2_obs_OT/637e18b7-96db-45ea-9a1e-7314468a4080/train_sample/201'
 
-# sample_a = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_27_franka_push/contrastive_ranking_triplet/6/negative'
-# sample_b = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_27_franka_push/contrastive_ranking_triplet/23/neutral'
+# sample_a = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_27_franka_push/equal_ranking_triplet/12/0'
+# sample_b = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_27_franka_push/equal_ranking_triplet/55/1'
 
 
 sample_a_embs = get_demo_embs(sample_a)
 sample_b_embs = get_demo_embs(sample_b)
 
-sinkorn_layer = OptimalTransportLayer(gamma = 1)
+sinkorn_layer = OptimalTransportLayer(gamma = 10)
 cost_matrix = cosine_distance(sample_b_embs, sample_a_embs)  # Get cost matrix for samples using critic network.
 transport_plan = sinkorn_layer(cost_matrix)
 ot_rewards = torch.diag(torch.mm(transport_plan, cost_matrix.T)).detach().cpu().numpy()

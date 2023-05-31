@@ -18,7 +18,7 @@ learn:
   save_interval: 50
   print_log: True
 
-  max_iterations: 2000
+  max_iterations: 10000
 
   cliprange: 0.1
   ent_coef: 0
@@ -35,3 +35,4 @@ learn:
   log_interval: 1
 
   reward_type: 'ground_truth'
+  encoder_type: 'vit'
