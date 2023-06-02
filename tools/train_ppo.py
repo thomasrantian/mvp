@@ -26,19 +26,19 @@ def train(cfg: omegaconf.DictConfig):
     #assert cfg.num_gpus == 1
     
     # Change the num_gpu_here
-    cfg.num_gpus = 1
+    cfg.num_gpus = 8
     # Set up distributed env
     if cfg.num_gpus > 1:
         dist.init_process_group("nccl")
-        local_rank = dist.get_rank() % cfg.num_gpus + 4
+        local_rank = dist.get_rank() % cfg.num_gpus
         torch.cuda.set_device(local_rank)
     else:
         local_rank = 0
 
     # Change the log dir in the mvp_exp_data folder
     # generate a unique id for the experiment
-    cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/5_28_push_2_obs_OT/" + str(uuid.uuid4())
-    cfg.task.env.numEnvs = 50
+    cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/5_30_gt/" + str(uuid.uuid4())
+    cfg.task.env.numEnvs = 20
     
     # Set the reward type
     cfg.train.learn.reward_type = "ground_truth"

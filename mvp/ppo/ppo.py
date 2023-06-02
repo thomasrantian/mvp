@@ -25,7 +25,7 @@ sys.path.append("...")
 #from preference_representation_train.representation_alignment_util import *
 from ddn.ddn.pytorch.optimal_transport import sinkhorn, OptimalTransportLayer
 from preference_representation_train.resnet_representation_alignment_util import *
-from preference_representation_train import models
+#from preference_representation_train import models
 # Find the path to the parent directory of the folder containing this file.
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 # exlucde the last folder
@@ -149,13 +149,13 @@ class PPO:
 
         # Save obs image and camera image flag
         self.save_camera_image = False
-
-        # Initialize and freeze the preference encoder
         self.encoder_type = encoder_type
-        if self.encoder_type == 'vit':
-            preference_encoder_cfg = {'name': 'vits-mae-hoi', 'pretrain_dir':
+        # Initialize and freeze the preference encoder
+        if reward_type == "OT":
+            if self.encoder_type == 'vit':
+                preference_encoder_cfg = {'name': 'vits-mae-hoi', 'pretrain_dir':
                 DIR_PATH + '/mvp_exp_data/mae_encoders', 'freeze': True, 'emb_dim': 128}
-            if self.reward_type == 'OT':
+            
                 self.preference_encoder = Encoder(
                     model_name=preference_encoder_cfg["name"],
                     pretrain_dir=preference_encoder_cfg["pretrain_dir"],
@@ -166,19 +166,19 @@ class PPO:
                 encoder_path = DIR_PATH + '/mvp_exp_data/mae_encoders/vit_frankapush_obs_encoder.pt'
                 self.preference_encoder.load_state_dict(torch.load(encoder_path))
                 self.preference_encoder.eval()
-        if self.encoder_type == 'resnet':
-            preference_encoder_cfg = {
-                "num_ctx_frames": 1,
-                "normalize_embeddings": False,
-                "learnable_temp": False,
-                "embedding_size": 32,
-            }
-            self.preference_encoder = models.Resnet18LinearEncoderNet(**preference_encoder_cfg).cuda()
-            encoder_path = DIR_PATH + '/mvp_exp_data/mae_encoders/5_27_resnet_franka_push_obs_encoder.pt'
-            self.preference_encoder.load_state_dict(torch.load(encoder_path))
-            self.preference_encoder.eval()
+            if self.encoder_type == 'resnet':
+                preference_encoder_cfg = {
+                    "num_ctx_frames": 1,
+                    "normalize_embeddings": False,
+                    "learnable_temp": False,
+                    "embedding_size": 32,
+                }
+                self.preference_encoder = models.Resnet18LinearEncoderNet(**preference_encoder_cfg).cuda()
+                encoder_path = DIR_PATH + '/mvp_exp_data/mae_encoders/5_27_resnet_franka_push_obs_encoder.pt'
+                self.preference_encoder.load_state_dict(torch.load(encoder_path))
+                self.preference_encoder.eval()
 
-        print('Loaded mvp encoder weight from {}'.format(encoder_path))
+            print('Loaded mvp encoder weight from {}'.format(encoder_path))
         
         # Initialize the sinkorn layer
         self.sinkorn_layer = OptimalTransportLayer(gamma = 1).cuda()
@@ -186,7 +186,8 @@ class PPO:
         # Extract the expert demos and compute the expert embeddings
         self.rescale_ot_reward = False
         self.rescale_factor_OT = 1.0
-        self.expert_demo_embs = self.get_expert_demo_embs( DIR_PATH + '/mvp_exp_data/behavior_train_data/5_27_franka_push/', 6)
+        if self.reward_type == 'OT':
+            self.expert_demo_embs = self.get_expert_demo_embs( DIR_PATH + '/mvp_exp_data/behavior_train_data/5_27_franka_push/', 6)
 
         # Load a pre-trained model
         #self.load('/home/thomastian/workspace/mvp_exp_data/rl_runs/5_28_push_2_obs_OT/f64a994e-ff9d-4f02-9eb8-a04db73d6707/model_5950.pt')
@@ -317,9 +318,9 @@ class PPO:
                     actions, actions_log_prob, values, mu, sigma, current_obs_feats = \
                         self.actor_critic.act(current_obs, current_states)
                     # Randomize the actions for exploration
-                    if it < 50:
-                      actions = torch.rand(actions.shape, device=self.device) - 0.5
-                      actions *= 2.0
+                    # if it < 50:
+                    #   actions = torch.rand(actions.shape, device=self.device) - 0.5
+                    #   actions *= 2.0
                     next_obs, rews, dones, infos = self.vec_env.step(actions) # next_obs is from the obs_buf
                     next_states = self.vec_env.get_state()
                     # Record the transition
