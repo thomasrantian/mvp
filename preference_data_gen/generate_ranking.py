@@ -22,19 +22,22 @@ def copy_file_to_dir(source_dir, target_dir):
             shutil.copy(file_path, target_dir)
 
 # Define the path to the meta data directory.
-data_dir = DIR_PATH + '/mvp_exp_data/representation_model_train_data/5_27_franka_push'
+data_dir = DIR_PATH + '/mvp_exp_data/representation_model_train_data/6_1_franka_push'
 meta_data_dir = os.path.join(data_dir, 'meta_demo')
 # Find the total file number in the directory.
 total_available_demo = len(os.listdir(meta_data_dir))
 data_gen_mode = 'contrastive_ranking_triplet'
-#data_gen_mode = 'equal_ranking_triplet'
+data_gen_mode = 'equal_ranking_triplet'
 
 
 # Go through every demo in the meta data directory and save the reward to a list.
 reward_list = []
 for demo_id in range(total_available_demo):
     reward_path = os.path.join(meta_data_dir, str(demo_id), 'sum_true_dense_reward.npy')
-    reward_list.append(np.load(reward_path))
+    preference_reward_path = os.path.join(meta_data_dir, str(demo_id), 'true_pref_reward_hist.npy')
+    preference_reward_hist = np.load(preference_reward_path)
+    final_reward = preference_reward_hist[-2]
+    reward_list.append(final_reward)
 reward_list = np.array(reward_list)
 # Plot the reward distribution.
 import matplotlib.pyplot as plt
@@ -61,14 +64,16 @@ if data_gen_mode == 'equal_ranking_triplet':
             reward_path = os.path.join(meta_data_dir, str(demo_id), 'sum_true_dense_reward.npy')
             reward_list.append(np.load(reward_path))
             reward_hist_path = os.path.join(meta_data_dir, str(demo_id), 'true_dense_reward_hist.npy')
-            last_step_reward_list.append(np.load(reward_hist_path)[-1])
+            preference_reward_path = np.load(os.path.join(meta_data_dir, str(demo_id), 'true_pref_reward_hist.npy'))
+            last_reward = preference_reward_path[-2]
+            last_step_reward_list.append(last_reward)
         # Convert the reward list to numpy array.
         reward_list = np.array(reward_list)
         last_step_reward_list = np.array(last_step_reward_list)
         # Sort the reward list and the demo list based on the reward. The first one is the lowest reward.
         reward_list, demo_list, last_step_reward_list = zip(*sorted(zip(reward_list, demo_list, last_step_reward_list))) 
-        if reward_list[0] < -45 and reward_list[1] < -45 and reward_list[2] < -45:
-        #if reward_list[0] > -35 and reward_list[1] > -35 and  reward_list[2] > -35:
+        if last_step_reward_list[0] > 0.14 and last_step_reward_list[1] > 0.14 and last_step_reward_list[2] > 0.14:
+        #if last_step_reward_list[0] < 0.1 and last_step_reward_list[1] < 0.1 and last_step_reward_list[2] < 0.1:
             # Create a directory to store the three rollouts. The directory name id the number of triplet found.
             triplet_save_dir = os.path.join(equal_ranking_data_save_dir, str(start_folder_name))
             # Check if the dir exists.If not, create it. If exists, delete it and create a new one.
@@ -109,7 +114,9 @@ if data_gen_mode == 'contrastive_ranking_triplet':
             reward_path = os.path.join(meta_data_dir, str(demo_id), 'sum_true_dense_reward.npy')
             reward_list.append(np.load(reward_path))
             reward_hist_path = os.path.join(meta_data_dir, str(demo_id), 'true_dense_reward_hist.npy')
-            last_step_reward_list.append(np.load(reward_hist_path)[-2])
+            preference_reward_path = np.load(os.path.join(meta_data_dir, str(demo_id), 'true_pref_reward_hist.npy'))
+            last_reward = preference_reward_path[-2]
+            last_step_reward_list.append(last_reward)
         # Convert the reward list to numpy array.
         reward_list = np.array(reward_list)
         last_step_reward_list = np.array(last_step_reward_list)
@@ -123,7 +130,7 @@ if data_gen_mode == 'contrastive_ranking_triplet':
         #if _reward_diff(reward_list[0], reward_list[1], reward_diff_threshold) and _reward_diff(reward_list[0], reward_list[2], reward_diff_threshold) and _reward_diff(reward_list[1], reward_list[2], reward_diff_threshold):    
         '''sweep only condition 50 demos for each condition'''
         #if (reward_list[0] <= -30 and abs(last_step_reward_list[0]) <= 0.7 and abs(last_step_reward_list[0]) >=0.45) and (reward_list[1] >= -25 and reward_list[1] < -10 and abs(last_step_reward_list[1]) < 0.05) and reward_list[2] >= -10:
-        if (reward_list[0] <= -45) and (reward_list[1] >= -35 and reward_list[1] < -30) and reward_list[2] >= -30:
+        if (last_step_reward_list[0] > 0.1) and (last_step_reward_list[1] <= 0.1 and last_step_reward_list[1] >0.05) and reward_list[2] <= 0.05:
             # Create a directory to store the three rollouts. The directory name id the number of triplet found.
             triplet_save_dir = os.path.join(contrastive_ranking_data_save_dir, str(start_folder_name))
             # Check if the dir exists.If not, create it. If exists, delete it and create a new one.

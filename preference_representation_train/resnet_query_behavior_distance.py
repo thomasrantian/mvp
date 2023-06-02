@@ -50,16 +50,16 @@ obs_encoder = models.Resnet18LinearEncoderNet(**kwargs).cpu()
 # Load the Resnet encoder and load the pre-trained tcc weight (if empty, then load the default weight)
 pretrained_path = "/home/thomastian/workspace/xirl_exp_data/4_20_tcc_model_one_target/"
 #model_config, obs_encoder = load_model_checkpoint(pretrained_path, device=torch.device('cuda:0'))
-obs_encoder.load_state_dict(torch.load('/home/thomastian/workspace/mvp_exp_data/mae_encoders/5_27_resnet_franka_push_obs_encoder.pt'))
+obs_encoder.load_state_dict(torch.load('/home/thomastian/workspace/mvp_exp_data/mae_encoders/6_1_resnet_franka_push_obs_encoder.pt'))
 obs_encoder.eval()
 
 
 
-sample_a = '/home/thomastian/workspace/mvp_exp_data/behavior_train_data/5_27_franka_push/5'
-sample_b = '/home/thomastian/workspace/mvp_exp_data/rl_runs/5_28_push_2_obs_OT/f64a994e-ff9d-4f02-9eb8-a04db73d6707/train_sample/1199'
+#sample_a = '/home/thomastian/workspace/mvp_exp_data/behavior_train_data/6_1_franka_push/5'
+#sample_b = '/home/thomastian/workspace/mvp_exp_data/rl_runs/5_28_push_2_obs_OT/f64a994e-ff9d-4f02-9eb8-a04db73d6707/train_sample/1199'
 
-# sample_a = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_27_franka_push/contrastive_ranking_triplet/6/positive'
-# sample_b = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_27_franka_push/contrastive_ranking_triplet/1/negative'
+sample_a = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/6_1_franka_push/contrastive_ranking_triplet/2/positive'
+sample_b = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/6_1_franka_push/contrastive_ranking_triplet/2/neutral'
 
 
 sample_a_embs = get_demo_embs(sample_a)

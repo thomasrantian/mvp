@@ -14,9 +14,9 @@ from resnet_representation_alignment_util import *
 sequence_length = 45
 
 # Extract the train data from the directory
-contrastive_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_27_franka_push/contrastive_ranking_triplet'
+contrastive_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/6_1_franka_push/contrastive_ranking_triplet'
 contrastive_ranking_data = extract_data_from_dir('contrastive', contrastive_ranking_data_dir, sequence_length, 'resnet').cuda()
-equal_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/5_27_franka_push/equal_ranking_triplet'
+equal_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/6_1_franka_push/equal_ranking_triplet'
 equal_ranking_data = extract_data_from_dir('equal_ranking', equal_ranking_data_dir, sequence_length, 'resnet').cuda()
 
 # Make sure contrastive ranking data and equal ranking data are the same size
@@ -24,13 +24,13 @@ equal_ranking_data = extract_data_from_dir('equal_ranking', equal_ranking_data_d
 
 # Split contrastive ranking data into train and eval. The slip is 80:20
 contrastive_ranking_data_size = contrastive_ranking_data.shape[0]
-train_size = int(contrastive_ranking_data_size * 0.7)
+train_size = int(contrastive_ranking_data_size * 0.5)
 eval_size = contrastive_ranking_data_size - train_size
 train_contrastive_ranking_data = contrastive_ranking_data[0:train_size, :, :, :, :, :]
 eval_contrastive_ranking_data = contrastive_ranking_data[train_size:, :, :, :, :, :]
 # Split equal ranking data into train and eval. The slip is 80:20
 equal_ranking_data_size = equal_ranking_data.shape[0]
-train_size = int(equal_ranking_data_size * 0.7)
+train_size = int(equal_ranking_data_size * 0.5)
 eval_size = equal_ranking_data_size - train_size
 train_equal_ranking_data = equal_ranking_data[0:train_size, :, :, :, :, :]
 eval_equal_ranking_data = equal_ranking_data[train_size:, :, :, :, :, :]
@@ -168,7 +168,7 @@ def get_batch_ot_reward(current_batch, sequence_length, batch_process):
 
 best_eval_loss = 10000
 
-for epoch in range(50):
+for epoch in range(100):
     running_loss = 0.0
     num_triplets_evaled = 0
     
@@ -211,5 +211,5 @@ for epoch in range(50):
         best_eval_loss = val_loss
         if enable_feature_aligner:
             torch.save(feature_aligner.state_dict(), '430_feature_aligner_weight_with_aligner.pt')
-        torch.save(obs_encoder.state_dict(), 'resnet_franka_push_obs_encoder.pt')
+        torch.save(obs_encoder.state_dict(), '6_1_resnet_franka_push_obs_encoder.pt')
         print('Model saved.')

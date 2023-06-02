@@ -25,7 +25,7 @@ sys.path.append("...")
 #from preference_representation_train.representation_alignment_util import *
 from ddn.ddn.pytorch.optimal_transport import sinkhorn, OptimalTransportLayer
 from preference_representation_train.resnet_representation_alignment_util import *
-#from preference_representation_train import models
+from preference_representation_train import models
 # Find the path to the parent directory of the folder containing this file.
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 # exlucde the last folder
@@ -174,7 +174,7 @@ class PPO:
                     "embedding_size": 32,
                 }
                 self.preference_encoder = models.Resnet18LinearEncoderNet(**preference_encoder_cfg).cuda()
-                encoder_path = DIR_PATH + '/mvp_exp_data/mae_encoders/5_27_resnet_franka_push_obs_encoder.pt'
+                encoder_path = DIR_PATH + '/mvp_exp_data/mae_encoders/6_1_resnet_franka_push_obs_encoder.pt'
                 self.preference_encoder.load_state_dict(torch.load(encoder_path))
                 self.preference_encoder.eval()
 
@@ -187,7 +187,7 @@ class PPO:
         self.rescale_ot_reward = False
         self.rescale_factor_OT = 1.0
         if self.reward_type == 'OT':
-            self.expert_demo_embs = self.get_expert_demo_embs( DIR_PATH + '/mvp_exp_data/behavior_train_data/5_27_franka_push/', 6)
+            self.expert_demo_embs = self.get_expert_demo_embs( DIR_PATH + '/mvp_exp_data/behavior_train_data/6_1_franka_push/', 4)
 
         # Load a pre-trained model
         #self.load('/home/thomastian/workspace/mvp_exp_data/rl_runs/5_28_push_2_obs_OT/f64a994e-ff9d-4f02-9eb8-a04db73d6707/model_5950.pt')
