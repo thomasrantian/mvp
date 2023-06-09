@@ -145,4 +145,7 @@ class VecTaskPython(VecTask):
         # step the simulator
         self.task.step(0 * actions)
 
+        # Offset the progress counter by 1 since this is just for getting the initial state
+        #self.task.progress *= 0
+
         return torch.clamp(self.task.obs_buf, -self.clip_obs, self.clip_obs).to(self.rl_device)

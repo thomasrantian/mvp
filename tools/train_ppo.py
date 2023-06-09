@@ -37,11 +37,11 @@ def train(cfg: omegaconf.DictConfig):
 
     # Change the log dir in the mvp_exp_data folder
     # generate a unique id for the experiment
-    cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/6_1_ot/" + str(uuid.uuid4())
+    cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/6_6_ground_gruth/" + str(uuid.uuid4())
     cfg.task.env.numEnvs = 20
     
     # Set the reward type
-    cfg.train.learn.reward_type = "OT"
+    cfg.train.learn.reward_type = "ground_truth"
     # Set the encoder type
     cfg.train.learn.encoder_type = "resnet"
      

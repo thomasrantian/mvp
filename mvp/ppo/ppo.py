@@ -174,7 +174,7 @@ class PPO:
                     "embedding_size": 32,
                 }
                 self.preference_encoder = models.Resnet18LinearEncoderNet(**preference_encoder_cfg).cuda()
-                encoder_path = DIR_PATH + '/mvp_exp_data/mae_encoders/6_1_resnet_franka_push_obs_encoder.pt'
+                encoder_path = DIR_PATH + '/mvp_exp_data/mae_encoders/6_7_resnet_franka_push_obs_encoder.pt'
                 self.preference_encoder.load_state_dict(torch.load(encoder_path))
                 self.preference_encoder.eval()
 
@@ -302,13 +302,14 @@ class PPO:
             successes = []
             # Pre-allocate the visual observation history   # n_env x max_step x 3, 224, 224
             mean_batch_distance_expert_hist = []
+            success_rate_hist = []         
             for it in range(self.current_learning_iteration, num_learning_iterations):
                 start = time.time()
                 rollout_visual_obs_hist = []
                 self.vec_env.task.reset_all()
                 current_obs = self.vec_env.reset()
                 current_states = self.vec_env.get_state()
-                env_0_preference_reward_hist = []
+                env_preference_reward_hist = []
                 # Rollout
                 for _ in range(self.num_transitions_per_env):
                     if self.apply_reset:
@@ -331,13 +332,15 @@ class PPO:
                     )
                     current_obs.copy_(next_obs)
                     current_states.copy_(next_states)
-                    env_0_preference_reward_hist.append(infos["preference_rew_buf"][0].cpu().detach().numpy())
+                    env_preference_reward_hist.append(infos["preference_rew_buf"].cpu().detach().numpy())
 
                     if self.print_log:
                         cur_reward_sum[:] += rews
                         cur_episode_length[:] += 1
 
                         new_ids = (dones > 0).nonzero(as_tuple=False)
+                        if len(new_ids) > 0:
+                           print("-" * 80)
                         reward_sum.extend(cur_reward_sum[new_ids][:, 0].cpu().numpy().tolist())
                         episode_length.extend(cur_episode_length[new_ids][:, 0].cpu().numpy().tolist())
                         successes.extend(infos["successes"][new_ids][:, 0].cpu().numpy().tolist())
@@ -427,14 +430,16 @@ class PPO:
                     # # 3) Modify the storage
                     # Augment the OT reward with the safety reward
                     batch_ot_distance = torch.sum(batch_ot_reward, dim=0).detach().cpu().numpy() # B x 1
-                    self.storage.fill_ot_rewards(batch_ot_reward)
+                    self.storage.fill_ot_rewards(1000 * -torch.square(batch_ot_reward))
                     # iterate over the batch_ot_distance
+                    rollout_visual_obs_hist = rollout_visual_obs_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, 3, 224, 224)
                     for i in range(self.vec_env.num_envs):
                         if abs(batch_ot_distance[i]) < 0.1:
                             print('Found a good trajectory')
                             # save the good trajectory
-                            self.save_one_rolloutdata(rollout_visual_obs_hist, i)
-                                   
+                            self.save_one_rolloutdata(rollout_visual_obs_hist[:,i,:,:,:], batch_ot_distance[i], np.array(env_preference_reward_hist)[:,i], self.log_dir + "/good_sample/", i)
+                else:
+                    rollout_visual_obs_hist = rollout_visual_obs_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, 3, 224, 224)
                 if self.print_log:
                     rewbuffer.extend(reward_sum)
                     lenbuffer.extend(episode_length)
@@ -478,8 +483,18 @@ class PPO:
                     torch.distributed.barrier()
                 # Save train rollouts (images, ground truth rewards)
                 if it % 5 == 0:
-                    self.save_rolloutdata(rollout_visual_obs_hist, batch_ot_distance, env_0_preference_reward_hist)
-            
+                    # randomly select one env id to save the rollout
+                    env_id = np.random.randint(0, self.vec_env.num_envs)
+                    if self.reward_type == 'OT':
+                        env_batch_ot_distance = batch_ot_distance[env_id]
+                    else:
+                        env_batch_ot_distance = None
+                    self.save_one_rolloutdata(rollout_visual_obs_hist[:,env_id,:,:,:], env_batch_ot_distance, np.array(env_preference_reward_hist)[:,env_id], self.log_dir + "/train_sample/",env_id)
+                    #self.save_rolloutdata(rollout_visual_obs_hist, batch_ot_distance, np.array(env_preference_reward_hist)[0,:])
+                    # save the success rate
+                    success_rate_hist.append(successbuffer_mean)
+                    np.save(self.log_dir + "/success_rate.npy", np.array(success_rate_hist))
+                    
             if self.print_log:
                 self.save(os.path.join(self.log_dir, 'model_{}.pt'.format(num_learning_iterations)))
                 self.writer.close()
@@ -504,13 +519,13 @@ class PPO:
             rollout_visual_obs_hist = extract_frames_from_dir_vit(self.log_dir + '/roll_out_temp/', self.num_transitions_per_env * self.vec_env.num_envs).cuda()
         return rollout_visual_obs_hist
     
-    
-    def save_one_rolloutdata(self, rollout_visual_obs_hist, env_id):
+    # To do: merge the save rollout function
+    def save_one_rolloutdata(self, rollout_visual_obs_hist, batch_ot_distance, env_preference_reward_hist, rollout_save_folder, env_id):
         #if self.encoder_type == 'vit':
-        rollout_visual_obs_hist_ = rollout_visual_obs_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, 3, 224, 224)
+        rollout_visual_obs_hist_ = rollout_visual_obs_hist.view(self.num_transitions_per_env, 3, 224, 224)
         #if self.encoder_type == 'resnet':
         #    rollout_visual_obs_hist_ = rollout_visual_obs_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, 3, 112, 112)
-        rollout_save_folder = self.log_dir + "/good_sample/"
+        #rollout_save_folder = self.log_dir + "/good_sample/"
         if not os.path.exists(rollout_save_folder):
             os.makedirs(rollout_save_folder)
         # find the total number of files in the folder
@@ -518,54 +533,65 @@ class PPO:
         rollout_save_folder = rollout_save_folder + "%d/" % num_files
         if not os.path.exists(rollout_save_folder):
             os.makedirs(rollout_save_folder)
+        env_reward = []
         for t in range(self.num_transitions_per_env):
             out_f = rollout_save_folder + "%d.png" % t
-            image_tensor = rollout_visual_obs_hist_[t,env_id,:,:,:].cpu().detach().numpy()
+            image_tensor = rollout_visual_obs_hist_[t,:,:].cpu().detach().numpy()
             image_tensor = np.moveaxis(image_tensor, 0, -1)
             # convert rgb to bgr
             image_tensor = image_tensor[...,::-1]
             cv2.imwrite(out_f, image_tensor)
-           
-    def save_rolloutdata(self, rollout_visual_obs_hist, batch_ot_distance, env_0_preference_reward_hist):
-        # define the rollout save folder using the rollout_save_id
-        # rollout_visual_obs_hist: (T * num_envs) * 3 * 224 * 224
-        # Convert the rollout_visual_obs_hist back to T * num_envs * 3 * 224 * 224
-        #if self.encoder_type == 'vit':
-        rollout_visual_obs_hist = rollout_visual_obs_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, 3, 224, 224)
-        #if self.encoder_type == 'resnet':
-        #    rollout_visual_obs_hist = rollout_visual_obs_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, 3, 112, 112)
-        rollout_save_folder = self.log_dir + "/train_sample/"
-        if not os.path.exists(rollout_save_folder):
-            os.makedirs(rollout_save_folder)
-        # find the total number of files in the folder
-        num_files = len(os.listdir(rollout_save_folder))
-        rollout_save_folder = rollout_save_folder + "%d/" % num_files
-        if not os.path.exists(rollout_save_folder):
-            os.makedirs(rollout_save_folder)
-        # for simplicity, we only save the first env
-        first_env_reward = []
-        #first_env_ot_reward = []
-        for t in range(self.num_transitions_per_env):
-            out_f = rollout_save_folder + "%d.png" % t
-            image_tensor = rollout_visual_obs_hist[t,0,:,:,:].cpu().detach().numpy()
-            image_tensor = np.moveaxis(image_tensor, 0, -1)
-            # convert rgb to bgr
-            image_tensor = image_tensor[...,::-1]
-            cv2.imwrite(out_f, image_tensor)
-            first_env_reward.append(self.storage.rewards[t, 0, 0].cpu().detach().numpy())
-            #if self.reward_type == 'OT':
-            #    first_env_ot_reward.append(self.storage.OT_rewards[t, 0, 0].cpu().detach().numpy())
-        # save the ground first_env_reward as a numpy array
-        first_env_reward = np.array(first_env_reward)
-        np.save(rollout_save_folder + "true_dense_reward_hist.npy", first_env_reward)
+            env_reward.append(self.storage.rewards[t, env_id, 0].cpu().detach().numpy())
+        env_reward = np.array(env_reward)
+        np.save(rollout_save_folder + "true_dense_reward_hist.npy", env_reward)
         # save the sum reward
-        np.save(rollout_save_folder + "sum_true_dense_reward.npy", np.sum(first_env_reward))
-        # Save the ground truth preference reward
-        np.save(rollout_save_folder + "true_pref_reward_hist.npy", env_0_preference_reward_hist)
-        # save the sum ot reward
+        np.save(rollout_save_folder + "sum_true_dense_reward.npy", np.sum(env_reward))
+        #Save the ground truth preference reward
+        np.save(rollout_save_folder + "true_pref_reward_hist.npy", env_preference_reward_hist)
         if self.reward_type == 'OT':
-            first_env_ot_reward = np.array(batch_ot_distance[0])
+            first_env_ot_reward = np.array(batch_ot_distance)
             np.save(rollout_save_folder + "sum_ot_reward.npy", first_env_ot_reward)
+
+    # def save_rolloutdata(self, rollout_visual_obs_hist, batch_ot_distance, env_0_preference_reward_hist):
+    #     # define the rollout save folder using the rollout_save_id
+    #     # rollout_visual_obs_hist: (T * num_envs) * 3 * 224 * 224
+    #     # Convert the rollout_visual_obs_hist back to T * num_envs * 3 * 224 * 224
+    #     #if self.encoder_type == 'vit':
+    #     #rollout_visual_obs_hist = rollout_visual_obs_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, 3, 224, 224)
+    #     #if self.encoder_type == 'resnet':
+    #     #    rollout_visual_obs_hist = rollout_visual_obs_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, 3, 112, 112)
+    #     rollout_save_folder = self.log_dir + "/train_sample/"
+    #     if not os.path.exists(rollout_save_folder):
+    #         os.makedirs(rollout_save_folder)
+    #     # find the total number of files in the folder
+    #     num_files = len(os.listdir(rollout_save_folder))
+    #     rollout_save_folder = rollout_save_folder + "%d/" % num_files
+    #     if not os.path.exists(rollout_save_folder):
+    #         os.makedirs(rollout_save_folder)
+    #     # for simplicity, we only save the first env
+    #     first_env_reward = []
+    #     #first_env_ot_reward = []
+    #     for t in range(self.num_transitions_per_env):
+    #         out_f = rollout_save_folder + "%d.png" % t
+    #         image_tensor = rollout_visual_obs_hist[t,0,:,:,:].cpu().detach().numpy()
+    #         image_tensor = np.moveaxis(image_tensor, 0, -1)
+    #         # convert rgb to bgr
+    #         image_tensor = image_tensor[...,::-1]
+    #         cv2.imwrite(out_f, image_tensor)
+    #         first_env_reward.append(self.storage.rewards[t, 0, 0].cpu().detach().numpy())
+    #         #if self.reward_type == 'OT':
+    #         #    first_env_ot_reward.append(self.storage.OT_rewards[t, 0, 0].cpu().detach().numpy())
+    #     # save the ground first_env_reward as a numpy array
+    #     first_env_reward = np.array(first_env_reward)
+    #     np.save(rollout_save_folder + "true_dense_reward_hist.npy", first_env_reward)
+    #     # save the sum reward
+    #     np.save(rollout_save_folder + "sum_true_dense_reward.npy", np.sum(first_env_reward))
+    #     # Save the ground truth preference reward
+    #     np.save(rollout_save_folder + "true_pref_reward_hist.npy", env_0_preference_reward_hist)
+    #     # save the sum ot reward
+    #     if self.reward_type == 'OT':
+    #         first_env_ot_reward = np.array(batch_ot_distance[0])
+    #         np.save(rollout_save_folder + "sum_ot_reward.npy", first_env_ot_reward)
             
     
     def log(

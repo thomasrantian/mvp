@@ -27,7 +27,7 @@ meta_data_dir = os.path.join(data_dir, 'meta_demo')
 # Find the total file number in the directory.
 total_available_demo = len(os.listdir(meta_data_dir))
 data_gen_mode = 'contrastive_ranking_triplet'
-data_gen_mode = 'equal_ranking_triplet'
+#data_gen_mode = 'equal_ranking_triplet'
 
 
 # Go through every demo in the meta data directory and save the reward to a list.
@@ -53,8 +53,8 @@ if data_gen_mode == 'equal_ranking_triplet':
         os.makedirs(equal_ranking_data_save_dir)
 
     num_triplet_found = 0
-    start_folder_name = 25
-    while num_triplet_found < 25:
+    start_folder_name = 75
+    while num_triplet_found < 75:
         # Random sample three rollouts from the data directory.
         demo_list = np.random.choice(total_available_demo, 3, replace=False)
         # Extract the reward.npy file from each rollout.
@@ -72,8 +72,8 @@ if data_gen_mode == 'equal_ranking_triplet':
         last_step_reward_list = np.array(last_step_reward_list)
         # Sort the reward list and the demo list based on the reward. The first one is the lowest reward.
         reward_list, demo_list, last_step_reward_list = zip(*sorted(zip(reward_list, demo_list, last_step_reward_list))) 
-        if last_step_reward_list[0] > 0.14 and last_step_reward_list[1] > 0.14 and last_step_reward_list[2] > 0.14:
-        #if last_step_reward_list[0] < 0.1 and last_step_reward_list[1] < 0.1 and last_step_reward_list[2] < 0.1:
+        #if last_step_reward_list[0] > 0.2 and last_step_reward_list[1] > 0.2 and last_step_reward_list[2] > 0.2:
+        if last_step_reward_list[0] < 0.08 and last_step_reward_list[1] < 0.08 and last_step_reward_list[2] < 0.08:
             # Create a directory to store the three rollouts. The directory name id the number of triplet found.
             triplet_save_dir = os.path.join(equal_ranking_data_save_dir, str(start_folder_name))
             # Check if the dir exists.If not, create it. If exists, delete it and create a new one.
@@ -102,9 +102,9 @@ if data_gen_mode == 'contrastive_ranking_triplet':
     if not os.path.exists(contrastive_ranking_data_save_dir):
         os.makedirs(contrastive_ranking_data_save_dir)
     num_triplet_found = 0
-    start_folder_name = 0
+    start_folder_name = 75
     reward_diff_threshold = 8
-    while num_triplet_found < 50:
+    while num_triplet_found < 75:
         # Random sample three rollouts from the data directory.
         demo_list = np.random.choice(total_available_demo, 3, replace=False)
         # Extract the reward.npy file from each rollout.
@@ -130,7 +130,8 @@ if data_gen_mode == 'contrastive_ranking_triplet':
         #if _reward_diff(reward_list[0], reward_list[1], reward_diff_threshold) and _reward_diff(reward_list[0], reward_list[2], reward_diff_threshold) and _reward_diff(reward_list[1], reward_list[2], reward_diff_threshold):    
         '''sweep only condition 50 demos for each condition'''
         #if (reward_list[0] <= -30 and abs(last_step_reward_list[0]) <= 0.7 and abs(last_step_reward_list[0]) >=0.45) and (reward_list[1] >= -25 and reward_list[1] < -10 and abs(last_step_reward_list[1]) < 0.05) and reward_list[2] >= -10:
-        if (last_step_reward_list[0] > 0.1) and (last_step_reward_list[1] <= 0.1 and last_step_reward_list[1] >0.05) and reward_list[2] <= 0.05:
+        #if (last_step_reward_list[0] > 0.15 and last_step_reward_list[0] < 0.2) and (last_step_reward_list[1] <= 0.08 and last_step_reward_list[1] >0.05) and reward_list[2] <= 0.05:
+        if (last_step_reward_list[0] >= 0.2) and (last_step_reward_list[1] <= 0.08 and last_step_reward_list[1] >0.05) and reward_list[2] <= 0.05:
             # Create a directory to store the three rollouts. The directory name id the number of triplet found.
             triplet_save_dir = os.path.join(contrastive_ranking_data_save_dir, str(start_folder_name))
             # Check if the dir exists.If not, create it. If exists, delete it and create a new one.

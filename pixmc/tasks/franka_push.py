@@ -744,7 +744,7 @@ def compute_franka_reward(
     # Goal reached
     goal_height = 0.8 - 0.4  # absolute goal height - table height
     #s = torch.where(successes < 1.0, torch.zeros_like(successes), successes)
-    successes = torch.where(og_d_x <= 0.05, torch.ones_like(successes), torch.zeros_like(successes))
+    successes = torch.where(og_d_x <= 0.08, torch.ones_like(successes), torch.zeros_like(successes))
 
     # Object below table height
     object_below = (object_z_init - object_pos[:, 2]) > 0.04

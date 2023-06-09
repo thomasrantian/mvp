@@ -24,13 +24,13 @@ equal_ranking_data = extract_data_from_dir('equal_ranking', equal_ranking_data_d
 
 # Split contrastive ranking data into train and eval. The slip is 80:20
 contrastive_ranking_data_size = contrastive_ranking_data.shape[0]
-train_size = int(contrastive_ranking_data_size * 0.5)
+train_size = int(contrastive_ranking_data_size * 0.8)
 eval_size = contrastive_ranking_data_size - train_size
 train_contrastive_ranking_data = contrastive_ranking_data[0:train_size, :, :, :, :, :]
 eval_contrastive_ranking_data = contrastive_ranking_data[train_size:, :, :, :, :, :]
 # Split equal ranking data into train and eval. The slip is 80:20
 equal_ranking_data_size = equal_ranking_data.shape[0]
-train_size = int(equal_ranking_data_size * 0.5)
+train_size = int(equal_ranking_data_size * 0.8)
 eval_size = equal_ranking_data_size - train_size
 train_equal_ranking_data = equal_ranking_data[0:train_size, :, :, :, :, :]
 eval_equal_ranking_data = equal_ranking_data[train_size:, :, :, :, :, :]
@@ -211,5 +211,5 @@ for epoch in range(100):
         best_eval_loss = val_loss
         if enable_feature_aligner:
             torch.save(feature_aligner.state_dict(), '430_feature_aligner_weight_with_aligner.pt')
-        torch.save(obs_encoder.state_dict(), '6_1_resnet_franka_push_obs_encoder.pt')
+        torch.save(obs_encoder.state_dict(), '6_7_resnet_franka_push_obs_encoder.pt')
         print('Model saved.')
