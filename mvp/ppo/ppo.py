@@ -234,7 +234,7 @@ class PPO:
         current_states = self.vec_env.get_state()
 
         if self.is_testing:
-            maxlen = 0
+            maxlen = 100000
             cur_reward_sum = torch.zeros(self.vec_env.num_envs, dtype=torch.float, device=self.device)
             cur_episode_length = torch.zeros(self.vec_env.num_envs, dtype=torch.float, device=self.device)
 
@@ -260,7 +260,7 @@ class PPO:
                     # Step the vec_environment
                     next_obs, rews, dones, infos = self.vec_env.step(actions)
                     next_states = self.vec_env.get_state()
-                    print(self.vec_env.task.franka_dof_pos)
+                    #print(self.vec_env.task.franka_dof_pos)
                     current_obs.copy_(next_obs)
                     current_states.copy_(next_states)
 
@@ -273,14 +273,14 @@ class PPO:
                     successes.extend(infos["successes"][new_ids][:, 0].cpu().numpy().tolist())
                     cur_reward_sum[new_ids] = 0
                     cur_episode_length[new_ids] = 0
-                    if True:
-                        step_id += 1
-                        image_obs = self.vec_env.get_visual_obs()[0].view(3,224,224).cpu().detach().numpy() # (num_envs, 3, 224, 224)
-                        image_obs = np.moveaxis(image_obs, 0, -1)
-                        #print(ttt)
-                        image_obs = image_obs[...,::-1]
-                        out_f = '/home/thomastian/workspace/temp/' + "%d.png" % step_id
-                        cv2.imwrite(out_f, image_obs) # It seems that this saves as BGR!!!
+                    # if True:
+                    #     step_id += 1
+                    #     image_obs = self.vec_env.get_visual_obs()[0].view(3,224,224).cpu().detach().numpy() # (num_envs, 3, 224, 224)
+                    #     image_obs = np.moveaxis(image_obs, 0, -1)
+                    #     #print(ttt)
+                    #     image_obs = image_obs[...,::-1]
+                    #     out_f = '/home/thomastian/workspace/temp/' + "%d.png" % step_id
+                    #     cv2.imwrite(out_f, image_obs) # It seems that this saves as BGR!!!
 
                     if len(new_ids) > 0:
                         print("-" * 80)
@@ -430,7 +430,7 @@ class PPO:
                     # # 3) Modify the storage
                     # Augment the OT reward with the safety reward
                     batch_ot_distance = torch.sum(batch_ot_reward, dim=0).detach().cpu().numpy() # B x 1
-                    self.storage.fill_ot_rewards(1000 * -torch.square(batch_ot_reward))
+                    self.storage.fill_ot_rewards(10000 * -torch.square(batch_ot_reward))
                     # iterate over the batch_ot_distance
                     rollout_visual_obs_hist = rollout_visual_obs_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, 3, 224, 224)
                     for i in range(self.vec_env.num_envs):

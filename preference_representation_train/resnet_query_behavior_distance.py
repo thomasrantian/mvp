@@ -56,7 +56,7 @@ obs_encoder.eval()
 
 
 sample_a = '/home/thomastian/workspace/mvp_exp_data/behavior_train_data/6_1_franka_push/3'
-sample_b = '/home/thomastian/workspace/mvp_exp_data/rl_runs/6_6_ot/3a659be1-57fe-4d60-879e-371b657fb7d4/good_sample/4'
+sample_b = '/home/thomastian/workspace/mvp_exp_data/rl_runs/6_14_ground_gruth_kuka/b3ae4655-619f-4011-b744-0453078114b6/train_sample/33'
 #sample_a = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/6_1_franka_push/contrastive_ranking_triplet/1/positive'
 #sample_b = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/6_1_franka_push/contrastive_ranking_triplet/1/negative'
 

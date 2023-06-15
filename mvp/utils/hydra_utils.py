@@ -25,6 +25,7 @@ from pixmc.tasks.franka_push import FrankaPush
 from pixmc.tasks.franka_push_2 import FrankaPush2
 from pixmc.tasks.kuka_cabinet import KukaCabinet
 from pixmc.tasks.kuka_move import KukaMove
+from pixmc.tasks.kuka_push import KukaPush
 from pixmc.tasks.kuka_pick import KukaPick
 from pixmc.tasks.kuka_pick_object import KukaPickObject
 from pixmc.tasks.kuka_reach import KukaReach
@@ -45,6 +46,7 @@ _TASK_MAP = {
     "FrankaPush2": FrankaPush2,
     "KukaCabinet": KukaCabinet,
     "KukaMove": KukaMove,
+    "KukaPush": KukaPush,
     "KukaPick": KukaPick,
     "KukaPickObject": KukaPickObject,
     "KukaReach": KukaReach,
