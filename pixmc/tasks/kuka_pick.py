@@ -72,6 +72,20 @@ class KukaPick(BaseTask):
         self.cfg["device_id"] = device_id
         self.cfg["headless"] = headless
 
+        # Third person cam [FOR STATE MODEL USE ONLY]
+        self.enable_third_person_cam = self.cfg["env"]["enable_third_person_cam"]
+        self.save_third_person_view_image = False
+        if self.enable_third_person_cam:
+            self.cam_w = self.cfg["env"]["cam"]["w"]
+            self.cam_h = self.cfg["env"]["cam"]["h"]
+            self.cam_fov = self.cfg["env"]["cam"]["fov"]
+            self.cam_ss = self.cfg["env"]["cam"]["ss"]
+            self.cam_loc_p = self.cfg["env"]["cam"]["loc_p"]
+            self.cam_loc_r = self.cfg["env"]["cam"]["loc_r"]
+            self.im_size = self.cfg["env"]["im_size"]
+            assert self.cam_h == self.im_size
+            assert self.cam_w % 2 == 0
+
         super().__init__(cfg=self.cfg, enable_camera_sensors=(self.obs_type == "pixels"))
 
         actor_root_state_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)
@@ -151,7 +165,7 @@ class KukaPick(BaseTask):
         self.to_height = torch.zeros((self.num_envs, 1), dtype=torch.float, device=self.device)
 
         # Image mean and std
-        if self.obs_type == "pixels":
+        if self.obs_type == "pixels" or self.enable_third_person_cam:
             self.im_mean = torch.tensor([0.485, 0.456, 0.406], dtype=torch.float, device=self.device).view(3, 1, 1)
             self.im_std = torch.tensor([0.229, 0.224, 0.225], dtype=torch.float, device=self.device).view(3, 1, 1)
 
@@ -289,7 +303,17 @@ class KukaPick(BaseTask):
         if self.obs_type == "pixels":
             self.cams = []
             self.cam_tensors = []
-
+        if self.enable_third_person_cam:
+            self.third_person_cams = []
+            self.third_person_cam_tensors = []
+            self.save_third_person_view_image = True
+            self.third_person_cam_image_id = 0
+            self.visual_obs_buf = torch.zeros((self.num_envs, 3, self.im_size, self.im_size), device=self.device, dtype=torch.float)
+        # self.enable_third_person_cam = False
+        # self.third_person_cams = []
+        # self.third_person_cam_tensors = []
+        # self.save_third_person_view_image = True
+        # self.third_person_cam_image_id = 0
         for i in range(self.num_envs):
             # Create env instance
             env_ptr = self.gym.create_env(self.sim, lower, upper, num_per_row)
@@ -401,6 +425,9 @@ class KukaPick(BaseTask):
             self.goal_dist_reward_scale, self.goal_bonus_reward_scale, self.action_penalty_scale,
             self.contact_forces, self.rigid_body_arm_inds, self.max_episode_length
         )
+    def reset_all(self):
+        for i in range(self.num_envs):
+            self.reset([i])
 
     def reset(self, env_ids):
 
@@ -526,6 +553,17 @@ class KukaPick(BaseTask):
             self.obs_buf[i] = self.cam_tensors[i][:, crop_l:crop_r, :3].permute(2, 0, 1).float() / 255.
             self.obs_buf[i] = (self.obs_buf[i] - self.im_mean) / self.im_std
         self.gym.end_access_image_tensors(self.sim)
+    
+    def compute_visual_observations(self):
+        self.gym.render_all_camera_sensors(self.sim)
+        self.gym.start_access_image_tensors(self.sim)
+        for i in range(self.num_envs):
+            crop_l = (self.cam_w - self.im_size) // 2
+            crop_r = crop_l + self.im_size
+            self.visual_obs_buf[i] = self.third_person_cam_tensors[i][:, crop_l:crop_r, :3].permute(2, 0, 1).float()
+            #self.visual_obs_buf[i] = (self.visual_obs_buf[i] - self.im_mean) / self.im_std
+        self.gym.end_access_image_tensors(self.sim)
+
 
     def post_physics_step(self):
         self.progress_buf += 1

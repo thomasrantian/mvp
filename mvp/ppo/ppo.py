@@ -151,7 +151,7 @@ class PPO:
         self.save_camera_image = False
         self.encoder_type = encoder_type
         # Initialize and freeze the preference encoder
-        if reward_type == "OT":
+        if reward_type == "OT" or reward_type == "preference":
             if self.encoder_type == 'vit':
                 preference_encoder_cfg = {'name': 'vits-mae-hoi', 'pretrain_dir':
                 DIR_PATH + '/mvp_exp_data/mae_encoders', 'freeze': True, 'emb_dim': 128}
@@ -167,14 +167,22 @@ class PPO:
                 self.preference_encoder.load_state_dict(torch.load(encoder_path))
                 self.preference_encoder.eval()
             if self.encoder_type == 'resnet':
+                if self.reward_type == "OT":
+                    embd_size = 32
+                else:
+                    embd_size = 1
                 preference_encoder_cfg = {
                     "num_ctx_frames": 1,
                     "normalize_embeddings": False,
                     "learnable_temp": False,
-                    "embedding_size": 32,
+                    "embedding_size": embd_size,
                 }
                 self.preference_encoder = models.Resnet18LinearEncoderNet(**preference_encoder_cfg).cuda()
-                encoder_path = DIR_PATH + '/mvp_exp_data/mae_encoders/6_7_resnet_franka_push_obs_encoder.pt'
+                if self.reward_type == "OT":
+                    checkpoint_dir = "/home/thomastian/workspace/mvp_exp_data/tcc_model/checkpoints/1001.ckpt"
+                    checkpoint = torch.load(checkpoint_dir)
+                    self.preference_encoder.load_state_dict(checkpoint['model'])
+                encoder_path = "/home/thomastian/workspace/mvp/6_22_franka_push_preference_reward_model.pt"
                 self.preference_encoder.load_state_dict(torch.load(encoder_path))
                 self.preference_encoder.eval()
 
@@ -260,7 +268,7 @@ class PPO:
                     # Step the vec_environment
                     next_obs, rews, dones, infos = self.vec_env.step(actions)
                     next_states = self.vec_env.get_state()
-                    #print(self.vec_env.task.franka_dof_pos)
+                    print(self.vec_env.task.kuka_dof_pos)
                     current_obs.copy_(next_obs)
                     current_states.copy_(next_states)
 
@@ -434,12 +442,28 @@ class PPO:
                     # iterate over the batch_ot_distance
                     rollout_visual_obs_hist = rollout_visual_obs_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, 3, 224, 224)
                     for i in range(self.vec_env.num_envs):
-                        if abs(batch_ot_distance[i]) < 0.1:
+                        if abs(batch_ot_distance[i]) < 0.3:
                             print('Found a good trajectory')
                             # save the good trajectory
                             self.save_one_rolloutdata(rollout_visual_obs_hist[:,i,:,:,:], batch_ot_distance[i], np.array(env_preference_reward_hist)[:,i], self.log_dir + "/good_sample/", i)
-                else:
+                if self.reward_type == 'ground_truth':
                     rollout_visual_obs_hist = rollout_visual_obs_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, 3, 224, 224)
+                
+                if self.reward_type == 'preference':
+                    # Save the rollout_visual_obs_hist to a temp folder and then read the image again[for debug]
+                    self.save_rollout_visual_obs_hist_to_temp(rollout_visual_obs_hist)
+                    rollout_visual_obs_hist_normed = self.read_rollout_visual_obs_hist_from_temp()
+                                        
+                    # pass the rollout_visual_obs_hist to the preference encoder
+                    if self.encoder_type == 'resnet':
+                        rollout_visual_emd_hist = self.preference_encoder.infer(rollout_visual_obs_hist_normed.unsqueeze(0)).embs.cuda() # (T * num_envs) * 1
+                    # Convert the rollout_visual_emd_hist back to T * num_envs * 1
+                    preference_reward = rollout_visual_emd_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, -1)
+
+                    self.storage.fill_ot_rewards(-5 * preference_reward)
+                    rollout_visual_obs_hist = rollout_visual_obs_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, 3, 224, 224)
+
+                
                 if self.print_log:
                     rewbuffer.extend(reward_sum)
                     lenbuffer.extend(episode_length)

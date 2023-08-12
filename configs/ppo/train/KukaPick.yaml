@@ -1,6 +1,12 @@
 seed: 0
 torch_deterministic: False
 
+preference_encoder:
+  name: vits-mae-hoi
+  pretrain_dir: "/home/thomastian/workspace/mvp_exp_data/mae_encoders/"
+  freeze: True
+  emb_dim: 128
+
 policy:
   pi_hid_sizes: [256, 128, 64]
   vf_hid_sizes: [256, 128, 64]
@@ -27,3 +33,6 @@ learn:
   init_noise_std: 1.0
 
   log_interval: 1
+
+  reward_type: 'ground_truth'
+  encoder_type: 'vit'

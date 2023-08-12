@@ -24,6 +24,7 @@ equal_ranking_data = extract_data_from_dir('equal_ranking', equal_ranking_data_d
 
 # Split contrastive ranking data into train and eval. The slip is 80:20
 contrastive_ranking_data_size = contrastive_ranking_data.shape[0]
+#contrastive_ranking_data_size = 80
 train_size = int(contrastive_ranking_data_size * 0.8)
 eval_size = contrastive_ranking_data_size - train_size
 train_contrastive_ranking_data = contrastive_ranking_data[0:train_size, :, :, :, :, :]
@@ -35,7 +36,7 @@ eval_size = equal_ranking_data_size - train_size
 train_equal_ranking_data = equal_ranking_data[0:train_size, :, :, :, :, :]
 eval_equal_ranking_data = equal_ranking_data[train_size:, :, :, :, :, :]
 
-enable_equal_ranking = True
+enable_equal_ranking = False
 enable_batch_processing = True
 enable_feature_aligner = False
 
@@ -49,8 +50,10 @@ kwargs = {
 obs_encoder = models.Resnet18LinearEncoderNet(**kwargs).cuda()
 # Set the obs_encoder to train mode
 # Load the Resnet encoder and load the pre-trained tcc weight (if empty, then load the default weight)
-pretrained_path = "/home/thomastian/workspace/xirl_exp_data/4_20_tcc_model_one_target/"
 #model_config, obs_encoder = load_model_checkpoint(pretrained_path, device=torch.device('cuda:0'))
+checkpoint_dir = "/home/thomastian/workspace/mvp_exp_data/tcc_model/checkpoints/1001.ckpt"
+checkpoint = torch.load(checkpoint_dir)
+obs_encoder.load_state_dict(checkpoint['model'])
 obs_encoder.train()
 
 def _freeze_module(m):
@@ -211,5 +214,5 @@ for epoch in range(100):
         best_eval_loss = val_loss
         if enable_feature_aligner:
             torch.save(feature_aligner.state_dict(), '430_feature_aligner_weight_with_aligner.pt')
-        torch.save(obs_encoder.state_dict(), '6_7_resnet_franka_push_obs_encoder.pt')
+        torch.save(obs_encoder.state_dict(), '6_15_resnet_kuka_push_obs_encoder.pt')
         print('Model saved.')

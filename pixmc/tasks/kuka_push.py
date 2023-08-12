@@ -55,7 +55,7 @@ class KukaPush(BaseTask):
             num_obs = 23 * 2
             self.compute_observations = self.compute_robot_obs
         elif self.obs_type == "oracle":
-            num_obs = 77
+            num_obs = 80
             self.compute_observations = self.compute_oracle_obs
         else:
             self.cam_w = self.cfg["env"]["cam"]["w"]
@@ -106,14 +106,9 @@ class KukaPush(BaseTask):
 
         # Default franka dof pos
         self.kuka_default_dof_pos = to_torch([
-            # Kuka arm
-            0.0, -0.4, 0.0, -1.0, 0.0, 1.0, 0.0,
-            # Index, middle, ring
-            0.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0,
-            # Thumb
-            0.0, 0.0, 0.0, 0.0
+        0.3478,  0.0651,  0.0548, -1.3629, -0.5628,  1.2425,  0.6556, -0.5117,
+        -0.0593,  1.5468, -0.1527, -0.5024, -0.2635,  1.5499, -0.2475, -0.5561,
+        1.2639, -0.2782, -0.2772,  0.7443, -0.3316,  1.2244,  0.8122
         ], device=self.device)
 
         # Dof state slices
@@ -223,15 +218,14 @@ class KukaPush(BaseTask):
         asset_root = self.cfg["env"]["asset"]["assetRoot"]
         kuka_asset_file = self.cfg["env"]["asset"]["assetFileNameKuka"]
 
-        # Load franka asset
+         # Load kuka asset
         asset_options = gymapi.AssetOptions()
-        asset_options.flip_visual_attachments = True
+        asset_options.flip_visual_attachments = False
         asset_options.fix_base_link = True
-        asset_options.collapse_fixed_joints = False
         asset_options.disable_gravity = True
-        asset_options.thickness = 0.001
+        #asset_options.thickness = 0.001
         asset_options.default_dof_drive_mode = gymapi.DOF_MODE_POS
-        asset_options.use_mesh_materials = True
+        #asset_options.use_mesh_materials = True
         kuka_asset = self.gym.load_asset(self.sim, asset_root, kuka_asset_file, asset_options)
 
         # Create table asset
@@ -312,7 +306,7 @@ class KukaPush(BaseTask):
 
 
         kuka_start_pose = gymapi.Transform()
-        kuka_start_pose.p = gymapi.Vec3(1.25, 0.0, 0.0)
+        kuka_start_pose.p = gymapi.Vec3(1.3, 0.0, 0.0)
         kuka_start_pose.r = gymapi.Quat(0.0, 0.0, 1.0, 0.0)
 
         table_start_pose = gymapi.Transform()
@@ -723,7 +717,7 @@ class KukaPush(BaseTask):
             self.index_grasp_pos, self.middle_grasp_pos, self.ring_grasp_pos, self.thumb_grasp_pos,
             self.object_pos,
             self.index_to_object, self.middle_to_object, self.ring_to_object, self.thumb_to_object,
-            self.to_height
+            self.to_height, self.avoidance_box_pos
         ], dim=-1)
 
     def compute_pixel_obs(self):

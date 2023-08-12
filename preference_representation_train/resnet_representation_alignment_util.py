@@ -172,6 +172,7 @@ def extract_data_from_dir(data_mode, data_dir, sequence_length, encoder_type):
         extract_frames_from_dir = extract_frames_from_dir_vit    
     # Find the total number of tripletd in the data_dir
     total_num_triplets = len(os.listdir(data_dir))
+    #total_num_triplets = 80
     data = []
     
     for i in range(total_num_triplets):

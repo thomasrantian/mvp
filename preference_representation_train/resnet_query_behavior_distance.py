@@ -48,24 +48,27 @@ kwargs = {
 obs_encoder = models.Resnet18LinearEncoderNet(**kwargs).cpu()
 # Set the obs_encoder to train mode
 # Load the Resnet encoder and load the pre-trained tcc weight (if empty, then load the default weight)
-pretrained_path = "/home/thomastian/workspace/xirl_exp_data/4_20_tcc_model_one_target/"
-#model_config, obs_encoder = load_model_checkpoint(pretrained_path, device=torch.device('cuda:0'))
-obs_encoder.load_state_dict(torch.load('/home/thomastian/workspace/mvp_exp_data/mae_encoders/6_7_resnet_franka_push_obs_encoder.pt'))
+pretrained_path = "/home/thomastian/workspace/mvp_exp_data/tcc_model/checkpoints/1001.ckpt"
+
+checkpoint_dir = "/home/thomastian/workspace/mvp_exp_data/tcc_model/checkpoints/1001.ckpt"
+checkpoint = torch.load(checkpoint_dir)
+#obs_encoder.load_state_dict(checkpoint['model'])
+obs_encoder.load_state_dict(torch.load('/home/thomastian/workspace/mvp/6_15_resnet_kuka_push_obs_encoder.pt'))
 obs_encoder.eval()
 
 
+for i in range(0, 140):
+    sample_a = '/home/thomastian/workspace/mvp_exp_data/behavior_train_data/6_1_franka_push/3'
+    sample_b = '/home/thomastian/workspace/mvp_exp_data/rl_runs/6_15_ground_truth_kuka/9d6a0b3d-6d8c-4dbb-aaeb-4d5425a46222/train_sample/' + str(i)
+    #sample_a = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/6_1_franka_push/contrastive_ranking_triplet/1/positive'
+    #sample_b = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/6_1_franka_push/contrastive_ranking_triplet/1/negative'
 
-sample_a = '/home/thomastian/workspace/mvp_exp_data/behavior_train_data/6_1_franka_push/3'
-sample_b = '/home/thomastian/workspace/mvp_exp_data/rl_runs/6_14_ground_gruth_kuka/b3ae4655-619f-4011-b744-0453078114b6/train_sample/33'
-#sample_a = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/6_1_franka_push/contrastive_ranking_triplet/1/positive'
-#sample_b = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/6_1_franka_push/contrastive_ranking_triplet/1/negative'
 
+    sample_a_embs = get_demo_embs(sample_a)
+    sample_b_embs = get_demo_embs(sample_b)
 
-sample_a_embs = get_demo_embs(sample_a)
-sample_b_embs = get_demo_embs(sample_b)
-
-sinkorn_layer = OptimalTransportLayer(gamma = 1)
-cost_matrix = cosine_distance(sample_b_embs, sample_a_embs)  # Get cost matrix for samples using critic network.
-transport_plan = sinkorn_layer(cost_matrix)
-ot_rewards = torch.diag(torch.mm(transport_plan, cost_matrix.T)).detach().cpu().numpy()
-print(np.sum(ot_rewards))
+    sinkorn_layer = OptimalTransportLayer(gamma = 1)
+    cost_matrix = cosine_distance(sample_b_embs, sample_a_embs)  # Get cost matrix for samples using critic network.
+    transport_plan = sinkorn_layer(cost_matrix)
+    ot_rewards = torch.diag(torch.mm(transport_plan, cost_matrix.T)).detach().cpu().numpy()
+    print(i, np.sum(ot_rewards))

@@ -138,7 +138,7 @@ class FrankaPush(BaseTask):
         # Object pos
         self.object_pos = self.root_state_tensor[:, self.env_object_ind, :3]
 
-        # Avoidance box pose
+        # Avoidance box pose (second object)
         self.avoidance_box_pos = self.root_state_tensor[:, self.env_avoidance_box_ind, :3]
         
         # Dof targets
