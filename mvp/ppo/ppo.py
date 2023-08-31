@@ -482,7 +482,7 @@ class PPO:
                 self.storage.clear()
                 stop = time.time()
                 learn_time = stop - start
-
+                successbuffer_mean=0
                 if self.print_log:
                     rewbuffer_len = len(rewbuffer)
                     rewbuffer_mean = statistics.mean(rewbuffer) if rewbuffer_len > 0 else 0
