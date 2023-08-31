@@ -19,9 +19,9 @@ def copy_file_to_dir(source_dir, target_dir):
                 shutil.copy(file_path, target_dir)
 
 # Source directory.
-source_dir = DIR_PATH + '/mvp_exp_data/representation_model_train_data/6_1_franka_push/meta_demo'
+source_dir = DIR_PATH + '/mvp_exp_data/human_demo/positive_demo'
 # Target directory.
-target_dir = DIR_PATH + '/mvp_exp_data/tcc_train/train/mediumstick'
+target_dir = DIR_PATH + '/mvp_exp_data/tcc_train_human/train/mediumstick'
 
 # if the target directory does not exist, create it.
 if not os.path.exists(target_dir):
@@ -41,10 +41,10 @@ for folder in os.listdir(source_dir):
         #sum_reward = np.load(os.path.join(folder_path, 'sum_true_dense_reward.npy'))
         # Load the reward hist
         #reward_hist = np.load(os.path.join(folder_path, 'true_dense_reward_hist.npy'))
-        preference_reward_path = np.load(os.path.join(folder_path, 'true_pref_reward_hist.npy'))
-        last_reward = preference_reward_path[-2]
-        #if True:
-        if last_reward < 0.1:
+        #preference_reward_path = np.load(os.path.join(folder_path, 'true_pref_reward_hist.npy'))
+        #last_reward = preference_reward_path[-2]
+        if True:
+        #if last_reward < 0.1:
         #if abs(dist_to_expert_min) < 0.5 and last_reward > 0.1:
             new_folder_path = os.path.join(target_dir, str(n_file))
             os.makedirs(new_folder_path)

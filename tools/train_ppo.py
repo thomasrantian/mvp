@@ -37,11 +37,11 @@ def train(cfg: omegaconf.DictConfig):
 
     # Change the log dir in the mvp_exp_data folder
     # generate a unique id for the experiment
-    cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/6_22_preference_kuka/" + str(uuid.uuid4())
-    cfg.task.env.numEnvs = 50
+    cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/8_31_OT_franka_datasize_exp/40" + str(uuid.uuid4())
+    cfg.task.env.numEnvs = 55
     
     # Set the reward type
-    cfg.train.learn.reward_type = "preference"
+    cfg.train.learn.reward_type = "OT"
     # Set the encoder type
     cfg.train.learn.encoder_type = "resnet"
      
@@ -65,7 +65,7 @@ def train(cfg: omegaconf.DictConfig):
         os.makedirs(cfg.logdir, exist_ok=True)
         dump_cfg(cfg, cfg.logdir)
 
-    seed = cfg.train.seed * cfg.num_gpus + local_rank 
+    seed = cfg.train.seed * cfg.num_gpus + local_rank +1
     set_np_formatting()
     set_seed(seed)
     # set_np_formatting()

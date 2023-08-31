@@ -50,17 +50,17 @@ obs_encoder = models.Resnet18LinearEncoderNet(**kwargs).cpu()
 # Load the Resnet encoder and load the pre-trained tcc weight (if empty, then load the default weight)
 pretrained_path = "/home/thomastian/workspace/mvp_exp_data/tcc_model/checkpoints/1001.ckpt"
 
-checkpoint_dir = "/home/thomastian/workspace/mvp_exp_data/tcc_model/checkpoints/1001.ckpt"
+checkpoint_dir = "/home/thomastian/workspace/mvp_exp_data/tcc_model_human/checkpoints/201.ckpt"
 checkpoint = torch.load(checkpoint_dir)
 #obs_encoder.load_state_dict(checkpoint['model'])
-obs_encoder.load_state_dict(torch.load('/home/thomastian/workspace/mvp/6_15_resnet_kuka_push_obs_encoder.pt'))
+obs_encoder.load_state_dict(torch.load('/home/thomastian/workspace/mvp/8_12_resnet_human_push_obs_encoder.pt'))
 obs_encoder.eval()
 
 
-for i in range(0, 140):
-    sample_a = '/home/thomastian/workspace/mvp_exp_data/behavior_train_data/6_1_franka_push/3'
-    sample_b = '/home/thomastian/workspace/mvp_exp_data/rl_runs/6_15_ground_truth_kuka/9d6a0b3d-6d8c-4dbb-aaeb-4d5425a46222/train_sample/' + str(i)
-    #sample_a = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/6_1_franka_push/contrastive_ranking_triplet/1/positive'
+for i in range(0, 40):
+    sample_a = '/home/thomastian/workspace/mvp_exp_data/behavior_train_data/8_12_human_push/0'
+    sample_b = '/home/thomastian/workspace/mvp_exp_data/rl_runs/8_12_OT_kuka/8eaae63e-6ffe-4cef-bf0d-e64e14e94c45/good_sample/' + str(i)
+    sample_a = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/6_1_franka_push/contrastive_ranking_triplet/1/positive'
     #sample_b = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/6_1_franka_push/contrastive_ranking_triplet/1/negative'
 
 

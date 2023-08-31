@@ -182,7 +182,7 @@ class PPO:
                     checkpoint_dir = "/home/thomastian/workspace/mvp_exp_data/tcc_model/checkpoints/1001.ckpt"
                     checkpoint = torch.load(checkpoint_dir)
                     self.preference_encoder.load_state_dict(checkpoint['model'])
-                encoder_path = "/home/thomastian/workspace/mvp/6_22_franka_push_preference_reward_model.pt"
+                encoder_path = "/home/thomastian/workspace/mvp/8_30_resnet_franka_push_obs_encoder_datasize40.pt"
                 self.preference_encoder.load_state_dict(torch.load(encoder_path))
                 self.preference_encoder.eval()
 
