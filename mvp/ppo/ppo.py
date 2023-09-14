@@ -150,6 +150,7 @@ class PPO:
         # Save obs image and camera image flag
         self.save_camera_image = False
         self.encoder_type = encoder_type
+        encoder_path = None
         # Initialize and freeze the preference encoder
         if reward_type == "OT" or reward_type == "preference":
             if self.encoder_type == 'vit':
@@ -163,8 +164,8 @@ class PPO:
                     emb_dim=preference_encoder_cfg["emb_dim"],
                 ).cuda()
                 # load the pretrained weight
-                encoder_path = DIR_PATH + '/mvp_exp_data/mae_encoders/vit_frankapush_obs_encoder.pt'
-                self.preference_encoder.load_state_dict(torch.load(encoder_path))
+                #encoder_path = DIR_PATH + '/mvp_exp_data/mae_encoders/vit_frankapush_obs_encoder.pt'
+                #self.preference_encoder.load_state_dict(torch.load(encoder_path))
                 self.preference_encoder.eval()
             if self.encoder_type == 'resnet':
                 if self.reward_type == "OT":
@@ -182,11 +183,15 @@ class PPO:
                     checkpoint_dir = "/home/thomastian/workspace/mvp_exp_data/tcc_model/checkpoints/1001.ckpt"
                     checkpoint = torch.load(checkpoint_dir)
                     self.preference_encoder.load_state_dict(checkpoint['model'])
-                encoder_path = "/home/thomastian/workspace/mvp/8_30_resnet_franka_push_obs_encoder_datasize40.pt"
-                self.preference_encoder.load_state_dict(torch.load(encoder_path))
+                    # encoder_path = DIR_PATH + "/mvp_exp_data/mae_encoders/6_7_resnet_franka_push_obs_encoder.pt"
+                    # self.preference_encoder.load_state_dict(torch.load(encoder_path))
+                if self.reward_type == "preference":
+                    #self.preference_encoder.add_activation_layer()
+                    encoder_path = DIR_PATH +  "/mvp_exp_data/mae_encoders/RLHF_9_12_resnet_franka_push_obs_encoder_datasize150.pt"
+                    self.preference_encoder.load_state_dict(torch.load(encoder_path))
                 self.preference_encoder.eval()
-
-            print('Loaded mvp encoder weight from {}'.format(encoder_path))
+            if encoder_path is not None:
+                print('Loaded encoder weight from {}'.format(encoder_path))
         
         # Initialize the sinkorn layer
         self.sinkorn_layer = OptimalTransportLayer(gamma = 1).cuda()
@@ -195,7 +200,7 @@ class PPO:
         self.rescale_ot_reward = False
         self.rescale_factor_OT = 1.0
         if self.reward_type == 'OT':
-            self.expert_demo_embs = self.get_expert_demo_embs( DIR_PATH + '/mvp_exp_data/behavior_train_data/6_1_franka_push/', 4)
+            self.expert_demo_embs = self.get_expert_demo_embs( DIR_PATH + '/mvp_exp_data/behavior_train_data/6_1_franka_push/', 6)
 
         # Load a pre-trained model
         #self.load('/home/thomastian/workspace/mvp_exp_data/rl_runs/5_28_push_2_obs_OT/f64a994e-ff9d-4f02-9eb8-a04db73d6707/model_5950.pt')
@@ -268,7 +273,7 @@ class PPO:
                     # Step the vec_environment
                     next_obs, rews, dones, infos = self.vec_env.step(actions)
                     next_states = self.vec_env.get_state()
-                    print(self.vec_env.task.kuka_dof_pos)
+                    #print(self.vec_env.task.kuka_dof_pos)
                     current_obs.copy_(next_obs)
                     current_states.copy_(next_states)
 
@@ -310,7 +315,8 @@ class PPO:
             successes = []
             # Pre-allocate the visual observation history   # n_env x max_step x 3, 224, 224
             mean_batch_distance_expert_hist = []
-            success_rate_hist = []         
+            success_rate_hist = []
+            mean_dist_2_expert_hist = []
             for it in range(self.current_learning_iteration, num_learning_iterations):
                 start = time.time()
                 rollout_visual_obs_hist = []
@@ -390,12 +396,15 @@ class PPO:
                     # 2) Compute the OT reward To do: Use batch computation to speed up 
                     # for each environment, we compute the OT reward using the expert demonstration embedings
                     batch_ot_reward = []
+                    #pe = torch.arange(0, 45).unsqueeze(1).float().cuda() * 0.2 # 45 x 1
                     for env_id in range(self.vec_env.num_envs):
                         current_env_rollout_visual_emd_hist = rollout_visual_emd_hist[env_id] # T * 128
+                        #current_env_rollout_visual_emd_hist = torch.cat((current_env_rollout_visual_emd_hist, pe), dim=1)
                         all_ot_reward = []
                         scores_list = []
                         # Find the closest expert demonstration embeding and use it to compute the OT reward
                         for exp_demo in self.expert_demo_embs:
+                            #exp_demo = torch.cat((exp_demo, pe), dim=1)
                             cost_matrix = cosine_distance(current_env_rollout_visual_emd_hist, exp_demo)
                             transport_plan = self.sinkorn_layer(cost_matrix)
                             if self.rescale_ot_reward:
@@ -438,14 +447,14 @@ class PPO:
                     # # 3) Modify the storage
                     # Augment the OT reward with the safety reward
                     batch_ot_distance = torch.sum(batch_ot_reward, dim=0).detach().cpu().numpy() # B x 1
-                    self.storage.fill_ot_rewards(10000 * -torch.square(batch_ot_reward))
+                    self.storage.fill_ot_rewards(1000 * -torch.square(batch_ot_reward))
                     # iterate over the batch_ot_distance
                     rollout_visual_obs_hist = rollout_visual_obs_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, 3, 224, 224)
-                    for i in range(self.vec_env.num_envs):
-                        if abs(batch_ot_distance[i]) < 0.3:
-                            print('Found a good trajectory')
-                            # save the good trajectory
-                            self.save_one_rolloutdata(rollout_visual_obs_hist[:,i,:,:,:], batch_ot_distance[i], np.array(env_preference_reward_hist)[:,i], self.log_dir + "/good_sample/", i)
+                    # for i in range(self.vec_env.num_envs):
+                    #     if abs(batch_ot_distance[i]) < 0.3:
+                    #         print('Found a good trajectory')
+                    #         # save the good trajectory
+                    #         self.save_one_rolloutdata(rollout_visual_obs_hist[:,i,:,:,:], batch_ot_distance[i], np.array(env_preference_reward_hist)[:,i], self.log_dir + "/good_sample/", i)
                 if self.reward_type == 'ground_truth':
                     rollout_visual_obs_hist = rollout_visual_obs_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, 3, 224, 224)
                 
@@ -460,7 +469,7 @@ class PPO:
                     # Convert the rollout_visual_emd_hist back to T * num_envs * 1
                     preference_reward = rollout_visual_emd_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, -1)
 
-                    self.storage.fill_ot_rewards(-5 * preference_reward)
+                    self.storage.fill_ot_rewards(-1. * preference_reward)
                     rollout_visual_obs_hist = rollout_visual_obs_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, 3, 224, 224)
 
                 
@@ -518,6 +527,9 @@ class PPO:
                     # save the success rate
                     success_rate_hist.append(successbuffer_mean)
                     np.save(self.log_dir + "/success_rate.npy", np.array(success_rate_hist))
+                    # save the mean distance to expert
+                    mean_dist_2_expert_hist.append(mean_dist_2_expert)
+                    np.save(self.log_dir + "/mean_dist_2_expert.npy", np.array(mean_dist_2_expert_hist))
                     
             if self.print_log:
                 self.save(os.path.join(self.log_dir, 'model_{}.pt'.format(num_learning_iterations)))

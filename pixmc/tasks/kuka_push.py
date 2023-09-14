@@ -799,7 +799,7 @@ def compute_kuka_reward(
     lift_bonus_reward = torch.where(object_above, lift_bonus_reward + 0.5, lift_bonus_reward)
 
     # Object to goal distance
-    og_d_x = torch.maximum(torch.abs(object_pos[:, 0].unsqueeze(1) - 0.4), torch.abs(avoidance_box_pos[:, 0].unsqueeze(1) - 0.4)).squeeze()
+    og_d_x = torch.maximum(object_pos[:, 0].unsqueeze(1) - 0.4, avoidance_box_pos[:, 0].unsqueeze(1) - 0.4).squeeze()
     og_d = torch.norm(to_height, p=2, dim=-1)
     og_dist_reward = torch.zeros_like(io_dist_reward)
     og_dist_reward =1.0 / (0.04 + og_d)

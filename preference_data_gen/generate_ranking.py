@@ -22,7 +22,7 @@ def copy_file_to_dir(source_dir, target_dir):
             shutil.copy(file_path, target_dir)
 
 # Define the path to the meta data directory.
-data_dir = DIR_PATH + '/mvp_exp_data/representation_model_train_data/6_1_franka_push'
+data_dir = DIR_PATH + '/mvp_exp_data/representation_model_train_data/9_12_franka_push'
 meta_data_dir = os.path.join(data_dir, 'meta_demo')
 # Find the total file number in the directory.
 total_available_demo = len(os.listdir(meta_data_dir))
@@ -124,14 +124,14 @@ if data_gen_mode == 'contrastive_ranking_triplet':
         def _reward_diff(r1, r2, threshold):
             return np.abs(r1 - r2) > threshold 
         #if _reward_diff(reward_list[0], reward_list[1], reward_diff_threshold) and _reward_diff(reward_list[0], reward_list[2], reward_diff_threshold) and _reward_diff(reward_list[1], reward_list[2], reward_diff_threshold):
-        # Sort the reward list and the demo list based on the reward. The first one is the lowest reward.
-        reward_list, demo_list, last_step_reward_list = zip(*sorted(zip(reward_list, demo_list, last_step_reward_list)))
+        # Sort the reward list and the demo list based on the last_step_reward_list in assending order. The first one is the lowest reward.
+        last_step_reward_list, reward_list, demo_list = zip(*sorted(zip(last_step_reward_list, reward_list, demo_list), reverse=True))
         #if reward_list[0] <= -30 and (reward_list[1] >= -20 and reward_list[1] < 0) and reward_list[2] >= -15:
         #if _reward_diff(reward_list[0], reward_list[1], reward_diff_threshold) and _reward_diff(reward_list[0], reward_list[2], reward_diff_threshold) and _reward_diff(reward_list[1], reward_list[2], reward_diff_threshold):    
         '''sweep only condition 50 demos for each condition'''
         #if (reward_list[0] <= -30 and abs(last_step_reward_list[0]) <= 0.7 and abs(last_step_reward_list[0]) >=0.45) and (reward_list[1] >= -25 and reward_list[1] < -10 and abs(last_step_reward_list[1]) < 0.05) and reward_list[2] >= -10:
-        #if (last_step_reward_list[0] > 0.15 and last_step_reward_list[0] < 0.2) and (last_step_reward_list[1] <= 0.08 and last_step_reward_list[1] >0.05) and reward_list[2] <= 0.05:
-        if (last_step_reward_list[0] >= 0.2) and (last_step_reward_list[1] <= 0.08 and last_step_reward_list[1] >0.05) and reward_list[2] <= 0.05:
+        if (last_step_reward_list[0] > 0.15 and last_step_reward_list[0] < 0.2) and (last_step_reward_list[1] <= 0.08 and last_step_reward_list[1] >0.05) and last_step_reward_list[2] <= 0.05:
+        #if (last_step_reward_list[0] >= 0.2) and (last_step_reward_list[1] <= 0.08 and last_step_reward_list[1] >0.05) and last_step_reward_list[2] <= 0.05:
             # Create a directory to store the three rollouts. The directory name id the number of triplet found.
             triplet_save_dir = os.path.join(contrastive_ranking_data_save_dir, str(start_folder_name))
             # Check if the dir exists.If not, create it. If exists, delete it and create a new one.

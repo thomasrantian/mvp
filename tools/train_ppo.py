@@ -37,13 +37,13 @@ def train(cfg: omegaconf.DictConfig):
 
     # Change the log dir in the mvp_exp_data folder
     # generate a unique id for the experiment
-    cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/8_31_OT_franka_datasize_exp/40" + str(uuid.uuid4())
-    cfg.task.env.numEnvs = 55
+    cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/9_12_MVP_franka_exp/" + str(uuid.uuid4())
+    cfg.task.env.numEnvs = 25
     
     # Set the reward type
     cfg.train.learn.reward_type = "OT"
     # Set the encoder type
-    cfg.train.learn.encoder_type = "resnet"
+    cfg.train.learn.encoder_type = "vit"
      
     # Parse the config
     cfg_dict = omegaconf_to_dict(cfg)
@@ -53,11 +53,11 @@ def train(cfg: omegaconf.DictConfig):
     print_dict(cfg_dict)
 
     #For test mode only, use only one environment
-    # cfg.logdir = "/home/thomastian/workspace/mvp_exp_data/rl_runs/6_15_ground_truth_kuka/9d6a0b3d-6d8c-4dbb-aaeb-4d5425a46222/"
+    # cfg.logdir = "/home/thomastian/workspace/mvp_exp_data/rl_runs/9_12_OT_Kuka_datasize_exp/150/491b5e1f-864c-4b2e-8645-56345664bb85/"
     # cfg.test = True
     # cfg.headless = False
-    # cfg.resume = 650
-    # cfg.task.env.numEnvs = 1
+    # cfg.resume = 2000
+    # cfg.task.env.numEnvs = 50
     # cfg_dict = omegaconf_to_dict(cfg)
 
     # Create logdir and dump cfg

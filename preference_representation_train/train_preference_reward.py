@@ -8,7 +8,7 @@ sys.path.append("..")
 from ddn.ddn.pytorch.optimal_transport import sinkhorn, OptimalTransportLayer
 import torch.nn as nn
 import models
-from resnet_representation_alignment_util import *
+from resnet_representation_alignment_util_old import *
 
 
 sequence_length = 45
@@ -62,23 +62,23 @@ equal_ranking_data = extract_data_from_dir('equal_ranking', equal_ranking_data_d
 
 # Split contrastive ranking data into train and eval. The slip is 80:20
 contrastive_ranking_data_size = contrastive_ranking_data.shape[0]
-train_size = int(contrastive_ranking_data_size * 0.7)
+train_size = int(contrastive_ranking_data_size * 0.8)
 eval_size = contrastive_ranking_data_size - train_size
 train_contrastive_ranking_data = contrastive_ranking_data[0:train_size, :, :, :, :, :]
 eval_contrastive_ranking_data = contrastive_ranking_data[train_size:, :, :, :, :, :]
 # Split equal ranking data into train and eval. The slip is 80:20
 equal_ranking_data_size = equal_ranking_data.shape[0]
-train_size = int(equal_ranking_data_size * 0.7)
+train_size = int(equal_ranking_data_size * 0.8)
 eval_size = equal_ranking_data_size - train_size
 train_equal_ranking_data = equal_ranking_data[0:train_size, :, :, :, :, :]
 eval_equal_ranking_data = equal_ranking_data[train_size:, :, :, :, :, :]
 
 
-set_batch_size = 5
+set_batch_size = 10
 sequence_length = train_contrastive_ranking_data.shape[2]
 sinkorn_layer = OptimalTransportLayer(gamma = 1)
 
-enable_equal_ranking = False
+enable_equal_ranking = True
 enable_batch_processing = True
 enable_feature_aligner = False
 
@@ -99,13 +99,13 @@ def eval_batch(eval_contrastive_ranking_data, eval_equal_ranking_data):
             current_batch = train_contrastive_ranking_data[i:i+set_batch_size] # B x 3 x T x 3 x 112 x 112
             batch_ot_reward_positive, batch_ot_reward_neutral, batch_ot_reward_negative = get_batch_ot_reward(current_batch, sequence_length, enable_batch_processing)
             # Compute the loss for the contrastive ranking (negative probability of positive)
-            batch_loss_contrastive =  -torch.exp(batch_ot_reward_positive) / (torch.exp(batch_ot_reward_positive) + torch.exp(batch_ot_reward_negative)) # B x 1
+            batch_loss_contrastive =  1-torch.exp(batch_ot_reward_positive) / (torch.exp(batch_ot_reward_positive) + torch.exp(batch_ot_reward_negative)) # B x 1
             if enable_equal_ranking:
                 # Extract batch from contrastive train data
                 current_batch = train_equal_ranking_data[i:i+set_batch_size] # B x 3 x T x 3 x 112 x 112
                 batch_ot_reward_positive, batch_ot_reward_neutral, batch_ot_reward_negative = get_batch_ot_reward(current_batch, sequence_length, enable_batch_processing)
                 # Compute the loss for the equal ranking
-                batch_loss_equal =  torch.norm(0.5 - torch.exp(batch_ot_reward_positive) / (torch.exp(batch_ot_reward_positive) + torch.exp(batch_ot_reward_negative))) # B x 1
+                batch_loss_equal =  torch.square(0.5 - torch.exp(batch_ot_reward_positive) / (torch.exp(batch_ot_reward_positive) + torch.exp(batch_ot_reward_negative))) # B x 1
             else:
                 batch_loss_equal = batch_loss_contrastive 
             
@@ -157,16 +157,16 @@ def get_batch_ot_reward(current_batch, sequence_length, batch_process):
     current_batch_negative_reward = current_batch[:, 2, :, :] # B x T x 1
     
     # Sum the reward over the time dimension
-    current_batch_positive_reward = torch.sum(current_batch_positive_reward, dim=1) # B x 1
-    current_batch_neutral_reward = torch.sum(current_batch_neutral_reward, dim=1) # B x 1
-    current_batch_negative_reward = torch.sum(current_batch_negative_reward, dim=1) # B x 1
+    current_batch_positive_reward = torch.sum(-current_batch_positive_reward, dim=1) # B x 1
+    current_batch_neutral_reward = torch.sum(-current_batch_neutral_reward, dim=1) # B x 1
+    current_batch_negative_reward = torch.sum(-current_batch_negative_reward, dim=1) # B x 1
 
     return current_batch_positive_reward, current_batch_neutral_reward, current_batch_negative_reward
 
 
 best_eval_loss = 10000
 
-for epoch in range(100):
+for epoch in range(50):
     running_loss = 0.0
     num_triplets_evaled = 0
     
@@ -175,13 +175,13 @@ for epoch in range(100):
         current_batch = train_contrastive_ranking_data[i:i+set_batch_size] # B x 3 x T x 3 x 112 x 112
         batch_ot_reward_positive, batch_ot_reward_neutral, batch_ot_reward_negative = get_batch_ot_reward(current_batch, sequence_length, enable_batch_processing)
         # Compute the loss for the contrastive ranking (negative probability of positive)
-        batch_loss_contrastive =  -torch.exp(batch_ot_reward_positive) / (torch.exp(batch_ot_reward_positive) + torch.exp(batch_ot_reward_negative)) # B x 1
+        batch_loss_contrastive =  1-torch.exp(batch_ot_reward_positive) / (torch.exp(batch_ot_reward_positive) + torch.exp(batch_ot_reward_negative)) # B x 1
         if enable_equal_ranking:
             # Extract batch from contrastive train data
             current_batch = train_equal_ranking_data[i:i+set_batch_size] # B x 3 x T x 3 x 112 x 112
             batch_ot_reward_positive, batch_ot_reward_neutral, batch_ot_reward_negative = get_batch_ot_reward(current_batch, sequence_length, enable_batch_processing)
             # Compute the loss for the equal ranking
-            batch_loss_equal =  torch.norm(0.5 - torch.exp(batch_ot_reward_positive) / (torch.exp(batch_ot_reward_positive) + torch.exp(batch_ot_reward_negative))) # B x 1
+            batch_loss_equal =  torch.square(0.5 - torch.exp(batch_ot_reward_positive) / (torch.exp(batch_ot_reward_positive) + torch.exp(batch_ot_reward_negative))) # B x 1
         else:
             batch_loss_equal = batch_loss_contrastive 
         
@@ -204,5 +204,5 @@ for epoch in range(100):
     print('Validation loss: %.3f' % val_loss)
     if val_loss < best_eval_loss:
         best_eval_loss = val_loss
-        torch.save(obs_encoder.state_dict(), '6_22_franka_push_preference_reward_model.pt')
+        torch.save(obs_encoder.state_dict(), 'RLHF_9_12_resnet_franka_push_obs_encoder_datasize150.pt')
         print('Model saved.')

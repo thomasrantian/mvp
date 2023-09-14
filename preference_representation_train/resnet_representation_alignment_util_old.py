@@ -155,23 +155,27 @@ def extract_frames_from_dir_vit(data_dir, n_frames):
     #all_frames_in_demo = all_frames_in_demo[::3, :, :, :] # (T/3) x 112 x 112
     return all_frames_in_demo
 
-def get_batch_data(data_mode, encoder_type, sequence_length, contrastive_ranking_data_dir, contrastive_indexs):
+def get_batch_data(sequence_length, contrastive_ranking_data_dir, contrastive_indexs, equal_ranking_data_dir, equal_indexs):
     """Return the batch data given the indexs"""
-    contrastive_ranking_data = extract_data_from_dir(data_mode, contrastive_ranking_data_dir, sequence_length, encoder_type, contrastive_indexs).cuda()
-    return contrastive_ranking_data
+    contrastive_ranking_data = extract_data_from_dir('contrastive', contrastive_ranking_data_dir, sequence_length, contrastive_indexs).cuda()
+    equal_ranking_data = extract_data_from_dir('equal_ranking', equal_ranking_data_dir, sequence_length, equal_indexs).cuda()
+    return contrastive_ranking_data, equal_ranking_data
 
 
-def extract_data_from_dir(data_mode, data_dir, sequence_length, encoder_type, indexs):
+def extract_data_from_dir(data_mode, data_dir, sequence_length, encoder_type):
     '''Extract the data from the data_dir'''
     '''Data mode can be equal or contrast'''
-    '''Output:  N_data x 3 x T x 3 x img_s x img_s'''
-    
+    '''Output:  N_data x 3 x T x 3 x 112 x 112'''
     if encoder_type == 'resnet':
         extract_frames_from_dir = extract_frames_from_dir_resnet
     elif encoder_type == 'vit':
         extract_frames_from_dir = extract_frames_from_dir_vit    
+    # Find the total number of tripletd in the data_dir
+    total_num_triplets = len(os.listdir(data_dir))
+    total_num_triplets = 150
     data = []
-    for i in indexs:
+    
+    for i in range(total_num_triplets):
         triplet_dir = data_dir + '/' + str(i) + '/'
         if data_mode == 'contrastive':
             positive_rollout_dir = triplet_dir + 'positive/'
@@ -189,11 +193,11 @@ def extract_data_from_dir(data_mode, data_dir, sequence_length, encoder_type, in
         neutral_rollout = extract_frames_from_dir(neutral_rollout_dir, sequence_length)
         # Stack the positive, negative and neutral rollouts
         triplet_rollouts = [positive_rollout, negative_rollout, neutral_rollout]
-        triplet_rollouts = torch.stack(triplet_rollouts, dim=0) # 3 x T x 3 x img_s x img_s
+        triplet_rollouts = torch.stack(triplet_rollouts, dim=0) # 3 x T x 3 x 112 x 112
         # Append the triplet rollouts to the data
         data.append(triplet_rollouts)
-
-    data = torch.stack(data, dim=0) # N_data x 3 x T x 3 x img_s x img_s
+     
+    data = torch.stack(data, dim=0) # N_data x 3 x T x 3 x 112 x 112
     return data
 
 def batch_cosine_distance(x, y):
@@ -221,4 +225,12 @@ def euclidean_distance(x, y):
     x_col = x.unsqueeze(1)
     y_lin = y.unsqueeze(0)
     c = torch.sqrt(torch.sum((torch.abs(x_col - y_lin)) ** 2, 2))
+    return c
+
+# Comupte the euclidean distance between two tensor A = (B x T x D) and B = (B x T x D)
+def batch_euclidean_distance(x, y):
+    "Returns the matrix of $|x_i-y_j|^p$."
+    x_col = x.unsqueeze(2)
+    y_lin = y.unsqueeze(1)
+    c = torch.sqrt(torch.sum((torch.abs(x_col - y_lin)) ** 2, 3))
     return c

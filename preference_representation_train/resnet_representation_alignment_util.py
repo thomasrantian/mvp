@@ -222,3 +222,11 @@ def euclidean_distance(x, y):
     y_lin = y.unsqueeze(0)
     c = torch.sqrt(torch.sum((torch.abs(x_col - y_lin)) ** 2, 2))
     return c
+
+# Comupte the euclidean distance between two tensor A = (B x T x D) and B = (B x T x D)
+def batch_euclidean_distance(x, y):
+    "Returns the matrix of $|x_i-y_j|^p$."
+    x_col = x.unsqueeze(2)
+    y_lin = y.unsqueeze(1)
+    c = torch.sqrt(torch.sum((torch.abs(x_col - y_lin)) ** 2, 3))
+    return c

@@ -149,6 +149,8 @@ class Resnet18LinearEncoderNet(SelfSupervisedModel):
     # Encoder.
     self.encoder = nn.Linear(num_ftrs, embedding_size)
 
+  def add_activation_layer(self):
+    self.encoder = nn.Sequential(self.encoder, nn.Sigmoid())
 
 class GoalClassifier(SelfSupervisedModel):
   """A resnet18 backbone with a binary classification head."""
