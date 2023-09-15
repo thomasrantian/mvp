@@ -204,5 +204,5 @@ for epoch in range(50):
     print('Validation loss: %.3f' % val_loss)
     if val_loss < best_eval_loss:
         best_eval_loss = val_loss
-        torch.save(obs_encoder.state_dict(), 'RLHF_9_12_resnet_franka_push_obs_encoder_datasize150.pt')
+        torch.save(obs_encoder.state_dict(), 'RLHF_9_12_resnet_franka_push_obs_encoder_datasize100.pt')
         print('Model saved.')

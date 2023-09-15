@@ -186,8 +186,8 @@ class PPO:
                     # encoder_path = DIR_PATH + "/mvp_exp_data/mae_encoders/6_7_resnet_franka_push_obs_encoder.pt"
                     # self.preference_encoder.load_state_dict(torch.load(encoder_path))
                 if self.reward_type == "preference":
-                    #self.preference_encoder.add_activation_layer()
-                    encoder_path = DIR_PATH +  "/mvp_exp_data/mae_encoders/RLHF_9_12_resnet_franka_push_obs_encoder_datasize150.pt"
+                    self.preference_encoder.add_activation_layer()
+                    encoder_path = DIR_PATH +  "/visual_representation_alignment_exp_data/franka_push_preference_encoders/onlycontras_Sig_RLHF_9_12_resnet_franka_push_obs_encoder_datasize150.pt"
                     self.preference_encoder.load_state_dict(torch.load(encoder_path))
                 self.preference_encoder.eval()
             if encoder_path is not None:
@@ -314,9 +314,15 @@ class PPO:
             episode_length = []
             successes = []
             # Pre-allocate the visual observation history   # n_env x max_step x 3, 224, 224
+            # Save the the mean of n_env rollouts' distance to the expert
             mean_batch_distance_expert_hist = []
             success_rate_hist = []
             mean_dist_2_expert_hist = []
+            # Save the mean RLHF reward of n_env rollouts every 5 iterations
+            RLHF_mean_reward_hist = []
+            RLHF_mean_reward = None
+            # Save the mean GT reward of n_env rollouts every 5 iterations
+            GT_mean_sum_reward_hist = []
             for it in range(self.current_learning_iteration, num_learning_iterations):
                 start = time.time()
                 rollout_visual_obs_hist = []
@@ -469,9 +475,11 @@ class PPO:
                     # Convert the rollout_visual_emd_hist back to T * num_envs * 1
                     preference_reward = rollout_visual_emd_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, -1)
 
-                    self.storage.fill_ot_rewards(-1. * preference_reward)
+                    self.storage.fill_ot_rewards(-1000. * preference_reward)
                     rollout_visual_obs_hist = rollout_visual_obs_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, 3, 224, 224)
-
+                    # Save the mean sum RLHF reward over the batch
+                    sum_preference_reward = torch.sum(preference_reward, dim=0) # n_envs * 1
+                    RLHF_mean_reward = torch.mean(sum_preference_reward) # 1
                 
                 if self.print_log:
                     rewbuffer.extend(reward_sum)
@@ -502,11 +510,13 @@ class PPO:
                         if len(mean_batch_distance_expert_hist) > 10:
                             mean_batch_distance_expert_hist = mean_batch_distance_expert_hist[-10:]
                         mean_dist_2_expert = np.mean(mean_batch_distance_expert_hist)
+                    elif self.reward_type == 'preference':
+                        mean_dist_2_expert = RLHF_mean_reward.cpu()
                     else:
                         mean_dist_2_expert = 0
                     self.log(
                         it, num_learning_iterations, collection_time, learn_time, mean_value_loss, mean_surrogate_loss,
-                        mean_trajectory_length, mean_reward, rewbuffer_mean, lenbuffer_mean, successbuffer_mean, mean_dist_2_expert
+                        mean_trajectory_length, mean_reward * mean_trajectory_length, rewbuffer_mean, lenbuffer_mean, successbuffer_mean, mean_dist_2_expert
                     )
                 if self.print_log and it % log_interval == 0:
                     self.save(os.path.join(self.log_dir, 'model_{}.pt'.format(it)))
@@ -524,12 +534,23 @@ class PPO:
                         env_batch_ot_distance = None
                     self.save_one_rolloutdata(rollout_visual_obs_hist[:,env_id,:,:,:], env_batch_ot_distance, np.array(env_preference_reward_hist)[:,env_id], self.log_dir + "/train_sample/",env_id)
                     #self.save_rolloutdata(rollout_visual_obs_hist, batch_ot_distance, np.array(env_preference_reward_hist)[0,:])
+
                     # save the success rate
                     success_rate_hist.append(successbuffer_mean)
                     np.save(self.log_dir + "/success_rate.npy", np.array(success_rate_hist))
+                    
                     # save the mean distance to expert
                     mean_dist_2_expert_hist.append(mean_dist_2_expert)
                     np.save(self.log_dir + "/mean_dist_2_expert.npy", np.array(mean_dist_2_expert_hist))
+                    
+                    # Save the mean sum RLHF reward over the batch
+                    if self.reward_type == 'preference':
+                        RLHF_mean_reward_hist.append(RLHF_mean_reward.cpu())
+                        np.save(self.log_dir + "/RLHF_mean_sum_reward.npy", np.array(RLHF_mean_reward_hist))
+                    
+                    # Save the mean GT reward over the batch
+                    GT_mean_sum_reward_hist.append(mean_trajectory_length * mean_reward.cpu())
+                    np.save(self.log_dir + "/GT_mean_sum_reward.npy", np.array(GT_mean_sum_reward_hist))
                     
             if self.print_log:
                 self.save(os.path.join(self.log_dir, 'model_{}.pt'.format(num_learning_iterations)))

@@ -88,7 +88,7 @@ class RolloutStorage:
             else:
                 next_values = self.values[step + 1]
             next_is_not_terminal = 1.0 - self.dones[step].float()
-            if self.reward_mode == 'OT':
+            if self.reward_mode == 'OT' or self.reward_mode == 'preference':
                 delta = self.OT_rewards[step] + next_is_not_terminal * gamma * next_values - self.values[step]
             else:
                 delta = self.rewards[step] + next_is_not_terminal * gamma * next_values - self.values[step]
@@ -112,7 +112,7 @@ class RolloutStorage:
         #else:
         # Note: We show the GT reward in statistics, not the OT reward
         reward_mean = self.rewards.mean()
-        return trajectory_lengths.float().mean(), reward_mean
+        return self.rewards.shape[0], reward_mean
 
     def mini_batch_generator(self, num_mini_batches):
         batch_size = self.num_envs * self.num_transitions_per_env
