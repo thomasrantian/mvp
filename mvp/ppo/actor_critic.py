@@ -10,7 +10,9 @@ import torch.nn as nn
 from torch.distributions import MultivariateNormal
 
 from mvp.backbones import vit
+from preference_representation_train import models
 
+from preference_representation_train.resnet_representation_alignment_util import *
 
 ###############################################################################
 # States
@@ -170,18 +172,32 @@ class PixelActorCritic(nn.Module):
         policy_cfg
     ):
         super(PixelActorCritic, self).__init__()
-        assert encoder_cfg is not None
+        #assert encoder_cfg is not None
 
         # Encoder
-        emb_dim = encoder_cfg["emb_dim"]
+        emb_dim = 32
 
-        self.obs_enc = Encoder(
-            model_name=encoder_cfg["name"],
-            pretrain_dir=encoder_cfg["pretrain_dir"],
-            freeze=encoder_cfg["freeze"],
-            emb_dim=emb_dim
-        )
-        self.state_enc = nn.Linear(states_shape[0], emb_dim)
+        # self.obs_enc = Encoder(
+        #     model_name=encoder_cfg["name"],
+        #     pretrain_dir=encoder_cfg["pretrain_dir"],
+        #     freeze=encoder_cfg["freeze"],
+        #     emb_dim=emb_dim
+        # )
+
+
+        preference_encoder_cfg = {
+            "num_ctx_frames": 1,
+            "normalize_embeddings": False,
+            "learnable_temp": False,
+            "embedding_size": 32,
+        }
+        self.obs_enc = models.Resnet18LinearEncoderNet(**preference_encoder_cfg).cuda()
+        encoder_path = "/home/thomastian/workspace/mvp_exp_data/paper_used_encoders/8_30_resnet_franka_push_obs_encoder_datasize150.pt"
+
+        self.obs_enc.load_state_dict(torch.load(encoder_path))
+
+        self.obs_enc.eval()
+        self.state_enc = nn.Linear(states_shape[0], 32)
 
         # AC params
         actor_hidden_dim = policy_cfg["pi_hid_sizes"]
@@ -190,7 +206,7 @@ class PixelActorCritic(nn.Module):
 
         # Policy
         actor_layers = []
-        actor_layers.append(nn.Linear(emb_dim * 2, actor_hidden_dim[0]))
+        actor_layers.append(nn.Linear(emb_dim +18, actor_hidden_dim[0]))
         actor_layers.append(activation)
         for li in range(len(actor_hidden_dim)):
             if li == len(actor_hidden_dim) - 1:
@@ -204,7 +220,7 @@ class PixelActorCritic(nn.Module):
 
         # Value function
         critic_layers = []
-        critic_layers.append(nn.Linear(emb_dim * 2, critic_hidden_dim[0]))
+        critic_layers.append(nn.Linear(emb_dim +18, critic_hidden_dim[0]))
         critic_layers.append(activation)
         for li in range(len(critic_hidden_dim)):
             if li == len(critic_hidden_dim) - 1:
@@ -243,9 +259,10 @@ class PixelActorCritic(nn.Module):
 
     @torch.no_grad()
     def act(self, observations, states):
-        obs_emb, obs_feat = self.obs_enc(observations)
+        observations = torch.nn.functional.interpolate(observations, size=(112, 112), mode='bilinear', align_corners=False).unsqueeze(0)
+        obs_emb = self.obs_enc(observations).embs.squeeze(0)
         state_emb = self.state_enc(states)
-        joint_emb = torch.cat([obs_emb, state_emb], dim=1)
+        joint_emb = torch.cat([obs_emb, states * 100], dim=1)
 
         actions_mean = self.actor(joint_emb)
 
@@ -263,21 +280,25 @@ class PixelActorCritic(nn.Module):
             value.detach(),
             actions_mean.detach(),
             self.log_std.repeat(actions_mean.shape[0], 1).detach(),
-            obs_feat.detach(),  # return obs features
+            None,  # return obs features
         )
 
     @torch.no_grad()
     def act_inference(self, observations, states):
-        obs_emb, _ = self.obs_enc(observations)
+        observations = torch.nn.functional.interpolate(observations, size=(112, 112), mode='bilinear', align_corners=False).unsqueeze(0)
+        obs_emb = self.obs_enc(observations).embs.squeeze(0)
+        #obs_emb, _ = self.obs_enc(observations)
         state_emb = self.state_enc(states)
-        joint_emb = torch.cat([obs_emb, state_emb], dim=1)
+        joint_emb = torch.cat([obs_emb, states * 100], dim=1)
         actions_mean = self.actor(joint_emb)
         return actions_mean
 
     def forward(self, obs_features, states, actions):
-        obs_emb = self.obs_enc.forward_feat(obs_features)
+        #obs_emb = self.obs_enc.forward_feat(obs_features)
+        observations = torch.nn.functional.interpolate(obs_features, size=(112, 112), mode='bilinear', align_corners=False).unsqueeze(0)
+        obs_emb = self.obs_enc(observations).embs.squeeze(0)
         state_emb = self.state_enc(states)
-        joint_emb = torch.cat([obs_emb, state_emb], dim=1)
+        joint_emb = torch.cat([obs_emb, states * 100], dim=1)
 
         actions_mean = self.actor(joint_emb)
 

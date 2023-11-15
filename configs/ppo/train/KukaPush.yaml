@@ -1,4 +1,4 @@
-seed: 0
+seed: 5
 torch_deterministic: False
 
 preference_encoder:
@@ -26,7 +26,7 @@ learn:
   noptepochs: 10
   nminibatches: 4
   max_grad_norm: 1
-  optim_stepsize: 0.0002
+  optim_stepsize: 0.001
   schedule: cos
   gamma: 0.99
   lam: 0.95

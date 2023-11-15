@@ -663,8 +663,8 @@ class FrankaPush(BaseTask):
         for i in range(self.num_envs):
             crop_l = (self.cam_w - self.im_size) // 2
             crop_r = crop_l + self.im_size
-            self.obs_buf[i] = self.cam_tensors[i][:, crop_l:crop_r, :3].permute(2, 0, 1).float() / 255.
-            self.obs_buf[i] = (self.obs_buf[i] - self.im_mean) / self.im_std
+            self.obs_buf[i] = self.third_person_cam_tensors[i][:, crop_l:crop_r, :3].permute(2, 0, 1).float() / 255.
+            #self.obs_buf[i] = (self.obs_buf[i] - self.im_mean) / self.im_std
         self.gym.end_access_image_tensors(self.sim)
     
     def compute_visual_observations(self):
@@ -738,7 +738,7 @@ def compute_franka_reward(
     
     preference_rewards = og_d
 
-    rewards = -2.0 * preference_rewards - 3.0 * objects_distance.squeeze() - 0.5 * lfo_d - 0.5 * rfo_d - action_penalty_scale * action_penalty
+    rewards = -3.0 * preference_rewards - 3.0 * objects_distance.squeeze() - 0.5 * lfo_d - 0.5 * rfo_d - action_penalty_scale * action_penalty
     rewards = rewards - lift_bonus_reward
     
     # Goal reached

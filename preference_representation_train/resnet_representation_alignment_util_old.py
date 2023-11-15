@@ -162,7 +162,7 @@ def get_batch_data(sequence_length, contrastive_ranking_data_dir, contrastive_in
     return contrastive_ranking_data, equal_ranking_data
 
 
-def extract_data_from_dir(data_mode, data_dir, sequence_length, encoder_type):
+def extract_data_from_dir(data_mode, data_dir, sequence_length, encoder_type,total_num_triplets=None):
     '''Extract the data from the data_dir'''
     '''Data mode can be equal or contrast'''
     '''Output:  N_data x 3 x T x 3 x 112 x 112'''
@@ -171,8 +171,8 @@ def extract_data_from_dir(data_mode, data_dir, sequence_length, encoder_type):
     elif encoder_type == 'vit':
         extract_frames_from_dir = extract_frames_from_dir_vit    
     # Find the total number of tripletd in the data_dir
-    total_num_triplets = len(os.listdir(data_dir))
-    total_num_triplets = 150
+    if total_num_triplets is None:
+        total_num_triplets = len(os.listdir(data_dir))
     data = []
     
     for i in range(total_num_triplets):

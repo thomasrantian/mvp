@@ -10,6 +10,10 @@ import torch.nn as nn
 import models
 from resnet_representation_alignment_util_old import *
 
+# Define the reward model
+reward_mode = 'OT'
+#reward_mode = 'RLHF'
+
 # Set the sequence length of the demonstration. For now: 50 for sweep, 30 for collision avoidance
 sequence_length = 45
 
@@ -52,11 +56,11 @@ for data_size in data_size_set:
         "learnable_temp": False,
         "embedding_size": 32,
     }
+    if reward_mode == 'RLHF':
+        kwargs['embedding_size'] = 1
+    
     obs_encoder = models.Resnet18LinearEncoderNet(**kwargs).cuda()
-    # Set the obs_encoder to train mode
-    # Load the Resnet encoder and load the pre-trained tcc weight (if empty, then load the default weight)
-    pretrained_path = "/home/thomastian/workspace/xirl_exp_data/4_20_tcc_model_one_target/"
-    #model_config, obs_encoder = load_model_checkpoint(pretrained_path, device=torch.device('cuda:0'))
+    # obs_encoder.add_activation_layer()
     obs_encoder.train()
 
     def _freeze_module(m):
@@ -76,10 +80,12 @@ for data_size in data_size_set:
 
     # Initialize the feature_aligner
     device = torch.device('cuda:0')
-    feature_aligner = FeatureAligner(sequence_length=sequence_length, embed_dim=32, n_heads=1, n_layers=1, device=device).cuda()
+    if enable_feature_aligner:
+        feature_aligner = FeatureAligner(sequence_length=sequence_length, embed_dim=32, n_heads=1, n_layers=1, device=device).cuda()
 
     # The batch size used for the training
     set_batch_size = 8
+    
     sinkorn_layer = OptimalTransportLayer(gamma = 1)
 
     if enable_feature_aligner:
@@ -120,6 +126,7 @@ for data_size in data_size_set:
     def get_batch_ot_reward(current_batch, sequence_length, batch_process):
         """Compute the OT reward for a batch of data"""
         '''Input shape: B x 3 x T x 3 x 112 x 112'''
+        
         batch_size = current_batch.shape[0]    
         # If batch_process is True, use obs_encoder to directly process the batch. If False, use the encoder to process each element in the batch
         if batch_process:
@@ -153,21 +160,28 @@ for data_size in data_size_set:
         current_batch_positive = current_batch[:, 0, :, :] # B x T x 32
         current_batch_negative = current_batch[:, 1, :, :] # B x T x 32
         current_batch_neutral = current_batch[:, 2, :, :] # B x T x 32
-        batch_cost_matrix_positive_neutral =  batch_cosine_distance(current_batch_positive, current_batch_neutral) 
-        batch_cost_matrix_positive_negative = batch_cosine_distance(current_batch_positive, current_batch_negative)
-        # Compute the transport plan of the batch
-        batch_transport_plan_postive_neutral = sinkorn_layer(batch_cost_matrix_positive_neutral)
-        batch_transport_plan_postive_negative = sinkorn_layer(batch_cost_matrix_positive_negative)
-        
-        # Compute batch_ot_reward_positive_neutral. Use torcch unbind to unbind the batch into a list of B tensors
-        temp = torch.unbind(torch.bmm(batch_transport_plan_postive_neutral, batch_cost_matrix_positive_neutral.transpose(1, 2)), dim=0)
-        batch_ot_transport_cost = torch.block_diag(*temp) # (BxT) x (BxT)
-        batch_ot_reward_positive_neutral = torch.sum(-torch.diag(batch_ot_transport_cost).view(batch_size, sequence_length), dim=1) # B x 1
-        
-        # Compute batch_ot_reward_positive_negative
-        temp = torch.unbind(torch.bmm(batch_transport_plan_postive_negative, batch_cost_matrix_positive_negative.transpose(1, 2)), dim=0)
-        batch_ot_transport_cost = torch.block_diag(*temp) # (BxT) x (BxT)
-        batch_ot_reward_positive_negative = torch.sum(-torch.diag(batch_ot_transport_cost).view(batch_size, sequence_length), dim=1) # B x 1
+
+        if reward_mode == 'OT':
+            batch_cost_matrix_positive_neutral =  batch_cosine_distance(current_batch_positive, current_batch_neutral) 
+            batch_cost_matrix_positive_negative = batch_cosine_distance(current_batch_positive, current_batch_negative)
+            # Compute the transport plan of the batch
+            batch_transport_plan_postive_neutral = sinkorn_layer(batch_cost_matrix_positive_neutral)
+            batch_transport_plan_postive_negative = sinkorn_layer(batch_cost_matrix_positive_negative)
+            
+            # Compute batch_ot_reward_positive_neutral. Use torcch unbind to unbind the batch into a list of B tensors
+            temp = torch.unbind(torch.bmm(batch_transport_plan_postive_neutral, batch_cost_matrix_positive_neutral.transpose(1, 2)), dim=0)
+            batch_ot_transport_cost = torch.block_diag(*temp) # (BxT) x (BxT)
+            batch_ot_reward_positive_neutral = torch.sum(-torch.diag(batch_ot_transport_cost).view(batch_size, sequence_length), dim=1) # B x 1
+            
+            # Compute batch_ot_reward_positive_negative
+            temp = torch.unbind(torch.bmm(batch_transport_plan_postive_negative, batch_cost_matrix_positive_negative.transpose(1, 2)), dim=0)
+            batch_ot_transport_cost = torch.block_diag(*temp) # (BxT) x (BxT)
+            batch_ot_reward_positive_negative = torch.sum(-torch.diag(batch_ot_transport_cost).view(batch_size, sequence_length), dim=1) # B x 1
+
+        elif reward_mode == 'RLHF':
+            # Sum the reward over the time dimension
+            batch_ot_reward_positive_neutral = torch.sum(-current_batch_positive, dim=1) # B x 1
+            batch_ot_reward_positive_negative = torch.sum(-current_batch_negative, dim=1) # B x 1
 
         return batch_ot_reward_positive_neutral, batch_ot_reward_positive_negative
 
@@ -188,7 +202,8 @@ for data_size in data_size_set:
                 # Extract batch from contrastive train data
                 current_batch = train_equal_ranking_data[i:i+set_batch_size] # B x 3 x T x 3 x 112 x 112
                 batch_ot_reward_positive_neutral, batch_ot_reward_positive_negative = get_batch_ot_reward(current_batch, sequence_length, enable_batch_processing)
-                # Compute the loss for the equal ranking
+                # Compute the loss for the equal ranking [for 6/1 data, sum gives better]
+                #batch_loss_equal =  torch.sum(0.5 - torch.exp(batch_ot_reward_positive_neutral) / (torch.exp(batch_ot_reward_positive_neutral) + torch.exp(batch_ot_reward_positive_negative))) # B x 1
                 batch_loss_equal =  torch.square(0.5 - torch.exp(batch_ot_reward_positive_neutral) / (torch.exp(batch_ot_reward_positive_neutral) + torch.exp(batch_ot_reward_positive_negative))) # B x 1
             else:
                 batch_loss_equal = batch_loss_contrastive 
@@ -213,8 +228,8 @@ for data_size in data_size_set:
         if enable_feature_aligner:
             feature_aligner.train()
         print('Validation loss: %.3f' % val_loss)
-        encoder_save_name = 'onlycontrast_newdata_9_12_resnet_franka_push_obs_encoder_datasize' + str(data_size) +'.pt'
 
+        encoder_save_name = '9_15_resnet_franka_push_obs_encoder_datasize' + str(data_size) +'.pt'
         if val_loss < best_eval_loss:
             best_eval_loss = val_loss
             if enable_feature_aligner:

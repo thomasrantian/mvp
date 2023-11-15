@@ -183,11 +183,12 @@ class PPO:
                     checkpoint_dir = "/home/thomastian/workspace/mvp_exp_data/tcc_model/checkpoints/1001.ckpt"
                     checkpoint = torch.load(checkpoint_dir)
                     self.preference_encoder.load_state_dict(checkpoint['model'])
-                    # encoder_path = DIR_PATH + "/mvp_exp_data/mae_encoders/6_7_resnet_franka_push_obs_encoder.pt"
-                    # self.preference_encoder.load_state_dict(torch.load(encoder_path))
+                    #encoder_path = DIR_PATH + "/mvp_exp_data/paper_used_encoders/8_30_resnet_franka_push_obs_encoder_datasize150.pt"
+                    #self.preference_encoder.load_state_dict(torch.load(encoder_path))    
+                    #self.actor_critic.obs_encoder = self.preference_encoder
                 if self.reward_type == "preference":
                     self.preference_encoder.add_activation_layer()
-                    encoder_path = DIR_PATH +  "/visual_representation_alignment_exp_data/franka_push_preference_encoders/onlycontras_Sig_RLHF_9_12_resnet_franka_push_obs_encoder_datasize150.pt"
+                    encoder_path = DIR_PATH +  "/visual_representation_alignment_exp_data/franka_push_preference_encoders/onlycontras_Sig_RLHF_9_12_resnet_franka_push_obs_encoder_datasize300.pt"
                     self.preference_encoder.load_state_dict(torch.load(encoder_path))
                 self.preference_encoder.eval()
             if encoder_path is not None:
@@ -453,7 +454,7 @@ class PPO:
                     # # 3) Modify the storage
                     # Augment the OT reward with the safety reward
                     batch_ot_distance = torch.sum(batch_ot_reward, dim=0).detach().cpu().numpy() # B x 1
-                    self.storage.fill_ot_rewards(1000 * -torch.square(batch_ot_reward))
+                    self.storage.fill_ot_rewards(10000 * -torch.square(batch_ot_reward))
                     # iterate over the batch_ot_distance
                     rollout_visual_obs_hist = rollout_visual_obs_hist.view(self.num_transitions_per_env, self.vec_env.num_envs, 3, 224, 224)
                     # for i in range(self.vec_env.num_envs):
