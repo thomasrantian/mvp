@@ -324,6 +324,7 @@ class PPO:
             RLHF_mean_reward = None
             # Save the mean GT reward of n_env rollouts every 5 iterations
             GT_mean_sum_reward_hist = []
+            mean_dist_2_expert = 0.0
             for it in range(self.current_learning_iteration, num_learning_iterations):
                 start = time.time()
                 rollout_visual_obs_hist = []

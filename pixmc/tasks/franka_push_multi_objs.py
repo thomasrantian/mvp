@@ -249,7 +249,7 @@ class FrankaPushMulti(BaseTask):
 
         # Creat the avoidance box asset
         self.avoidance_box_size = self.object_size
-        avoidance_box_dims = gymapi.Vec3(self.avoidance_box_size-0.01, self.avoidance_box_size+0.045, self.avoidance_box_size)
+        avoidance_box_dims = gymapi.Vec3(self.avoidance_box_size-0.015, self.avoidance_box_size+0.045, self.avoidance_box_size)
         asset_options = gymapi.AssetOptions()
         #asset_options.fix_base_link = True
         asset_options.density = 5000
@@ -268,7 +268,7 @@ class FrankaPushMulti(BaseTask):
 
         # Creat the fourth object box asset
         self.fourth_object_size = self.object_size
-        fourth_object_dims = gymapi.Vec3(self.fourth_object_size+0.045, self.fourth_object_size-0.01, self.fourth_object_size)
+        fourth_object_dims = gymapi.Vec3(self.fourth_object_size+0.045, self.fourth_object_size-0.02, self.fourth_object_size)
         asset_options = gymapi.AssetOptions()
         #asset_options.fix_base_link = True
         asset_options.density = 5000
@@ -350,7 +350,7 @@ class FrankaPushMulti(BaseTask):
 
 
         fourth_object_start_pose = gymapi.Transform()
-        fourth_object_start_pose.p = gymapi.Vec3(0.57, -0.15, table_dims.z + 0.03)
+        fourth_object_start_pose.p = gymapi.Vec3(0.57, -0.16, table_dims.z + 0.03)
         self.fourth_object_start_position = fourth_object_start_pose.p
 
         fifth_object_start_pose = gymapi.Transform()
@@ -359,7 +359,7 @@ class FrankaPushMulti(BaseTask):
 
 
         sixth_object_start_pose = gymapi.Transform()
-        sixth_object_start_pose.p = gymapi.Vec3(0.48, -0.1, table_dims.z + 0.03)
+        sixth_object_start_pose.p = gymapi.Vec3(0.5, -0.12, table_dims.z + 0.03)
         self.sixth_object_start_position = sixth_object_start_pose.p
         
         self.goal_x = 0.4
@@ -661,7 +661,7 @@ class FrankaPushMulti(BaseTask):
             (len(env_ids), 1), device=self.device
         ).squeeze(dim=1)
         delta_y = torch_rand_float(
-            -0.08, 0.08,
+            -0.04, 0.08,
             (len(env_ids), 1), device=self.device
         ).squeeze(dim=1)
 
@@ -706,7 +706,7 @@ class FrankaPushMulti(BaseTask):
 
 
         self.root_state_tensor[env_ids, self.env_fifth_object_ind, 0] = self.fifth_object_start_position.x + delta_x
-        self.root_state_tensor[env_ids, self.env_fifth_object_ind, 1] = self.fifth_object_start_position.y + delta_y
+        self.root_state_tensor[env_ids, self.env_fifth_object_ind, 1] = self.fifth_object_start_position.y + delta_y * 0.2
         self.root_state_tensor[env_ids, self.env_fifth_object_ind, 2] = self.object_z_init
         self.root_state_tensor[env_ids, self.env_fifth_object_ind, 3:6] = 0.0
         self.root_state_tensor[env_ids, self.env_fifth_object_ind, 6] = 1.0
@@ -715,7 +715,7 @@ class FrankaPushMulti(BaseTask):
 
 
         self.root_state_tensor[env_ids, self.env_sixth_object_ind, 0] = self.sixth_object_start_position.x + delta_x
-        self.root_state_tensor[env_ids, self.env_sixth_object_ind, 1] = self.sixth_object_start_position.y + delta_y * 0.2
+        self.root_state_tensor[env_ids, self.env_sixth_object_ind, 1] = self.sixth_object_start_position.y + delta_y * 0.6
         self.root_state_tensor[env_ids, self.env_sixth_object_ind, 2] = self.object_z_init
         self.root_state_tensor[env_ids, self.env_sixth_object_ind, 3:6] = 0.0
         self.root_state_tensor[env_ids, self.env_sixth_object_ind, 6] = 1.0
@@ -904,7 +904,7 @@ def compute_franka_reward(
     disliked_og_d = torch.norm(red_to_goal, p=2, dim=-1)
 
 
-    disliked_og_dist_reward = torch.where(disliked_og_d >= 0.05, torch.zeros_like(successes), torch.ones_like(successes))
+    disliked_og_dist_reward = torch.where(disliked_og_d >= 0.04, torch.zeros_like(successes), torch.ones_like(successes))
     
 
     # Regularization on the actions
@@ -918,7 +918,10 @@ def compute_franka_reward(
     # Goal reached
     goal_height = 0.8 - 0.4  # absolute goal height - table height
     #s = torch.where(successes < 1.0, torch.zeros_like(successes), successes)
-    successes = torch.where(og_d_x <= 0.08, torch.ones_like(successes), torch.zeros_like(successes))
+    
+    successes_1 = torch.where(og_d_x <= 0.08, torch.ones_like(successes), torch.zeros_like(successes))
+    successes_2 = torch.where(disliked_og_dist_reward > 0.0, torch.zeros_like(successes), torch.ones_like(successes))
+    successes = successes_1 * successes_2
 
     # Object below table height
     object_below = (object_z_init - object_pos[:, 2]) > 0.04
