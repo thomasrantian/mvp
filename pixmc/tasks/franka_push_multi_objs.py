@@ -245,11 +245,11 @@ class FrankaPushMulti(BaseTask):
         self.object_size = 0.05
         asset_options = gymapi.AssetOptions()
         asset_options.density = 5000
-        object_asset = self.gym.create_box(self.sim, self.object_size, self.object_size, 0.06, asset_options)
+        object_asset = self.gym.create_box(self.sim, self.object_size-0.015, self.object_size+0.05, 0.04, asset_options)
 
         # Creat the avoidance box asset
         self.avoidance_box_size = self.object_size
-        avoidance_box_dims = gymapi.Vec3(self.avoidance_box_size-0.015, self.avoidance_box_size+0.045, self.avoidance_box_size)
+        avoidance_box_dims = gymapi.Vec3(self.avoidance_box_size-0.015, self.avoidance_box_size+0.05, 0.04)
         asset_options = gymapi.AssetOptions()
         #asset_options.fix_base_link = True
         asset_options.density = 5000
@@ -268,7 +268,7 @@ class FrankaPushMulti(BaseTask):
 
         # Creat the fourth object box asset
         self.fourth_object_size = self.object_size
-        fourth_object_dims = gymapi.Vec3(self.fourth_object_size+0.045, self.fourth_object_size-0.02, self.fourth_object_size)
+        fourth_object_dims = gymapi.Vec3(self.fourth_object_size, self.fourth_object_size, self.fourth_object_size)
         asset_options = gymapi.AssetOptions()
         #asset_options.fix_base_link = True
         asset_options.density = 5000
@@ -276,7 +276,7 @@ class FrankaPushMulti(BaseTask):
 
         # Creat the fifth object box asset
         self.fifth_object_size = self.object_size
-        fifth_object_dims = gymapi.Vec3(self.fifth_object_size-0.015, self.fifth_object_size+0.045, self.fifth_object_size)
+        fifth_object_dims = gymapi.Vec3(self.fifth_object_size, self.fifth_object_size, self.fifth_object_size)
         asset_options = gymapi.AssetOptions()
         #asset_options.fix_base_link = True
         asset_options.density = 5000
@@ -341,11 +341,11 @@ class FrankaPushMulti(BaseTask):
         self.object_z_init = object_start_pose.p.z
 
         avoidance_box_start_pose = gymapi.Transform()
-        avoidance_box_start_pose.p = gymapi.Vec3(0.52, 0.0, table_dims.z + 0.03)
+        avoidance_box_start_pose.p = gymapi.Vec3(0.5, 0.0, table_dims.z + 0.03)
         self.avoidance_box_start_position = avoidance_box_start_pose.p
 
         third_object_start_pose = gymapi.Transform()
-        third_object_start_pose.p = gymapi.Vec3(0.63, 0.09, table_dims.z + 0.03)
+        third_object_start_pose.p = gymapi.Vec3(0.6, 0.1, table_dims.z + 0.03)
         self.third_object_start_position = third_object_start_pose.p
 
 
@@ -354,12 +354,12 @@ class FrankaPushMulti(BaseTask):
         self.fourth_object_start_position = fourth_object_start_pose.p
 
         fifth_object_start_pose = gymapi.Transform()
-        fifth_object_start_pose.p = gymapi.Vec3(0.58, -0.1, table_dims.z + 0.03)
+        fifth_object_start_pose.p = gymapi.Vec3(0.57, -0.05, table_dims.z + 0.03)
         self.fifth_object_start_position = fifth_object_start_pose.p
 
 
         sixth_object_start_pose = gymapi.Transform()
-        sixth_object_start_pose.p = gymapi.Vec3(0.5, -0.12, table_dims.z + 0.03)
+        sixth_object_start_pose.p = gymapi.Vec3(0.50, -0.12, table_dims.z + 0.03)
         self.sixth_object_start_position = sixth_object_start_pose.p
         
         self.goal_x = 0.4
@@ -436,7 +436,7 @@ class FrankaPushMulti(BaseTask):
 
             # Avoidance box actor
             avoidance_box_actor = self.gym.create_actor(env_ptr, avoidance_box_asset, avoidance_box_start_pose, "avoidance_box", i, 0, 0)
-            self.gym.set_rigid_body_color(env_ptr, avoidance_box_actor, 0, gymapi.MESH_VISUAL_AND_COLLISION, gymapi.Vec3(0, 1, 0))
+            self.gym.set_rigid_body_color(env_ptr, avoidance_box_actor, 0, gymapi.MESH_VISUAL_AND_COLLISION, gymapi.Vec3(1, 0, 0))
 
             # Third object actor
             third_object_actor = self.gym.create_actor(env_ptr, third_object_asset, third_object_start_pose, "third_object", i, 0, 0)
@@ -444,7 +444,7 @@ class FrankaPushMulti(BaseTask):
 
             # Fourth object actor
             fourth_object_actor = self.gym.create_actor(env_ptr, fourth_object_asset, fourth_object_start_pose, "fourth_object", i, 0, 0)
-            self.gym.set_rigid_body_color(env_ptr, fourth_object_actor, 0, gymapi.MESH_VISUAL_AND_COLLISION, gymapi.Vec3(1, 0, 0))
+            self.gym.set_rigid_body_color(env_ptr, fourth_object_actor, 0, gymapi.MESH_VISUAL_AND_COLLISION, gymapi.Vec3(0, 1, 0))
             
             # Fifth object actor
             fifth_object_actor = self.gym.create_actor(env_ptr, fifth_object_asset, fifth_object_start_pose, "fifth_object", i, 0, 0)
@@ -705,7 +705,7 @@ class FrankaPushMulti(BaseTask):
         self.root_state_tensor[env_ids, self.env_fourth_object_ind, 10:13] = 0.0
 
 
-        self.root_state_tensor[env_ids, self.env_fifth_object_ind, 0] = self.fifth_object_start_position.x + delta_x
+        self.root_state_tensor[env_ids, self.env_fifth_object_ind, 0] = self.fifth_object_start_position.x + delta_x * 0
         self.root_state_tensor[env_ids, self.env_fifth_object_ind, 1] = self.fifth_object_start_position.y + delta_y * 0.2
         self.root_state_tensor[env_ids, self.env_fifth_object_ind, 2] = self.object_z_init
         self.root_state_tensor[env_ids, self.env_fifth_object_ind, 3:6] = 0.0
@@ -714,8 +714,8 @@ class FrankaPushMulti(BaseTask):
         self.root_state_tensor[env_ids, self.env_fifth_object_ind, 10:13] = 0.0
 
 
-        self.root_state_tensor[env_ids, self.env_sixth_object_ind, 0] = self.sixth_object_start_position.x + delta_x
-        self.root_state_tensor[env_ids, self.env_sixth_object_ind, 1] = self.sixth_object_start_position.y + delta_y * 0.6
+        self.root_state_tensor[env_ids, self.env_sixth_object_ind, 0] = self.sixth_object_start_position.x + delta_x * 0
+        self.root_state_tensor[env_ids, self.env_sixth_object_ind, 1] = self.sixth_object_start_position.y + delta_y
         self.root_state_tensor[env_ids, self.env_sixth_object_ind, 2] = self.object_z_init
         self.root_state_tensor[env_ids, self.env_sixth_object_ind, 3:6] = 0.0
         self.root_state_tensor[env_ids, self.env_sixth_object_ind, 6] = 1.0
