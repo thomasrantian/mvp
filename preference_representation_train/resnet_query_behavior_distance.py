@@ -53,15 +53,15 @@ pretrained_path = "/home/thomastian/workspace/mvp_exp_data/tcc_model/checkpoints
 checkpoint_dir = "/home/thomastian/workspace/mvp_exp_data/tcc_model_human/checkpoints/201.ckpt"
 checkpoint = torch.load(checkpoint_dir)
 #obs_encoder.load_state_dict(checkpoint['model'])
-obs_encoder.load_state_dict(torch.load('/home/thomastian/workspace/mvp/8_12_resnet_human_push_obs_encoder.pt'))
+obs_encoder.load_state_dict(torch.load('/home/thomastian/workspace/mvp/11_19_resnet_franka_push_multi_obs_encoder_datasize150.pt'))
 obs_encoder.eval()
 
 
-for i in range(0, 40):
+for i in range(0, 1):
     sample_a = '/home/thomastian/workspace/mvp_exp_data/behavior_train_data/8_12_human_push/0'
     sample_b = '/home/thomastian/workspace/mvp_exp_data/rl_runs/8_12_OT_kuka/8eaae63e-6ffe-4cef-bf0d-e64e14e94c45/good_sample/' + str(i)
-    sample_a = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/6_1_franka_push/contrastive_ranking_triplet/1/positive'
-    #sample_b = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/6_1_franka_push/contrastive_ranking_triplet/1/negative'
+    sample_a = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/11_19_franka_push_multi_obj/contrastive_ranking_triplet/1/positive'
+    sample_b = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/11_19_franka_push_multi_obj/contrastive_ranking_triplet/2/neutral'
 
 
     sample_a_embs = get_demo_embs(sample_a)

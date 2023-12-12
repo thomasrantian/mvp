@@ -15,13 +15,13 @@ def copy_file_to_dir(source_dir, target_dir):
         file_path = os.path.join(source_dir, file)
         if os.path.isfile(file_path):
             # if the file is a png file, copy it to the target directory.
-            if file_path.endswith('.png'):
-                shutil.copy(file_path, target_dir)
+            #if file_path.endswith('.png'):
+            shutil.copy(file_path, target_dir)
 
 # Source directory.
-source_dir = DIR_PATH + '/mvp_exp_data/human_demo/positive_demo'
+source_dir = DIR_PATH + '/mvp_exp_data/rl_runs/11_18_multi_ot _reward/75a9bcdf-bc1b-441d-bb49-902afd7c3dcb/train_sample'
 # Target directory.
-target_dir = DIR_PATH + '/mvp_exp_data/tcc_train_human/train/mediumstick'
+target_dir = DIR_PATH + '/mvp_exp_data/representation_model_train_data/11_19_franka_push_multi_obj/meta_demo'
 
 # if the target directory does not exist, create it.
 if not os.path.exists(target_dir):

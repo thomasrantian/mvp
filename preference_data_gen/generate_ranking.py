@@ -22,7 +22,7 @@ def copy_file_to_dir(source_dir, target_dir):
             shutil.copy(file_path, target_dir)
 
 # Define the path to the meta data directory.
-data_dir = DIR_PATH + '/mvp_exp_data/representation_model_train_data/9_12_franka_push'
+data_dir = DIR_PATH + '/mvp_exp_data/representation_model_train_data/11_19_franka_push_multi_obj'
 meta_data_dir = os.path.join(data_dir, 'meta_demo')
 # Find the total file number in the directory.
 total_available_demo = len(os.listdir(meta_data_dir))
@@ -72,7 +72,7 @@ if data_gen_mode == 'equal_ranking_triplet':
         last_step_reward_list = np.array(last_step_reward_list)
         # Sort the reward list and the demo list based on the reward. The first one is the lowest reward.
         reward_list, demo_list, last_step_reward_list = zip(*sorted(zip(reward_list, demo_list, last_step_reward_list))) 
-        #if last_step_reward_list[0] > 0.2 and last_step_reward_list[1] > 0.2 and last_step_reward_list[2] > 0.2:
+        #if last_step_reward_list[0] > 0.15 and last_step_reward_list[1] > 0.15 and last_step_reward_list[2] > 0.15:
         if last_step_reward_list[0] < 0.08 and last_step_reward_list[1] < 0.08 and last_step_reward_list[2] < 0.08:
             # Create a directory to store the three rollouts. The directory name id the number of triplet found.
             triplet_save_dir = os.path.join(equal_ranking_data_save_dir, str(start_folder_name))

@@ -245,11 +245,11 @@ class FrankaPushMulti(BaseTask):
         self.object_size = 0.05
         asset_options = gymapi.AssetOptions()
         asset_options.density = 5000
-        object_asset = self.gym.create_box(self.sim, self.object_size-0.015, self.object_size+0.05, 0.04, asset_options)
+        object_asset = self.gym.create_box(self.sim, self.object_size*0.8, self.object_size*0.8+0.05, 0.04*0.8, asset_options)
 
         # Creat the avoidance box asset
-        self.avoidance_box_size = self.object_size
-        avoidance_box_dims = gymapi.Vec3(self.avoidance_box_size-0.015, self.avoidance_box_size+0.05, 0.04)
+        self.avoidance_box_size = self.object_size * 0.8
+        avoidance_box_dims = gymapi.Vec3(self.avoidance_box_size, self.avoidance_box_size+0.05, 0.04*0.8)
         asset_options = gymapi.AssetOptions()
         #asset_options.fix_base_link = True
         asset_options.density = 5000
@@ -258,7 +258,7 @@ class FrankaPushMulti(BaseTask):
 
 
         # Creat the third object box asset
-        self.third_object_size = self.object_size
+        self.third_object_size = self.object_size * 0.8
         third_object_dims = gymapi.Vec3(self.third_object_size, self.third_object_size, self.third_object_size)
         asset_options = gymapi.AssetOptions()
         #asset_options.fix_base_link = True
@@ -267,7 +267,7 @@ class FrankaPushMulti(BaseTask):
 
 
         # Creat the fourth object box asset
-        self.fourth_object_size = self.object_size
+        self.fourth_object_size = self.object_size * 0.8
         fourth_object_dims = gymapi.Vec3(self.fourth_object_size, self.fourth_object_size, self.fourth_object_size)
         asset_options = gymapi.AssetOptions()
         #asset_options.fix_base_link = True
@@ -275,7 +275,7 @@ class FrankaPushMulti(BaseTask):
         fourth_object_asset = self.gym.create_box(self.sim, fourth_object_dims.x, fourth_object_dims.y, fourth_object_dims.z, asset_options)
 
         # Creat the fifth object box asset
-        self.fifth_object_size = self.object_size
+        self.fifth_object_size = self.object_size * 0.8
         fifth_object_dims = gymapi.Vec3(self.fifth_object_size, self.fifth_object_size, self.fifth_object_size)
         asset_options = gymapi.AssetOptions()
         #asset_options.fix_base_link = True
@@ -283,7 +283,7 @@ class FrankaPushMulti(BaseTask):
         fifth_object_asset = self.gym.create_box(self.sim, fifth_object_dims.x, fifth_object_dims.y, fifth_object_dims.z, asset_options)
 
         # Creat the sisth object box asset
-        self.sixth_object_size = self.object_size
+        self.sixth_object_size = self.object_size * 0.8
         sixth_object_dims = gymapi.Vec3(self.sixth_object_size, self.sixth_object_size, self.sixth_object_size)
         asset_options = gymapi.AssetOptions()
         #asset_options.fix_base_link = True

@@ -1,3 +1,6 @@
+import scipy.stats as stats
+import numpy as np
+
 import matplotlib.pyplot as plt
 import os
 import numpy as np
@@ -74,88 +77,87 @@ kwargs = {
     "learnable_temp": False,
     "embedding_size": 32,
 }
-
-encoder_path = "/home/thomastian/workspace/visual_representation_alignment_exp_data/franka_push_preference_encoders/6_7_resnet_franka_push_obs_encoder.pt"
+encoder_path = "/home/thomastian/workspace/visual_representation_alignment_exp_data/franka_push_preference_encoders/8_30_resnet_franka_push_obs_encoder_datasize150.pt"
 obs_encoder = models.Resnet18LinearEncoderNet(**kwargs).cpu()
 
 #obs_encoder.add_activation_layer()
-obs_encoder.load_state_dict(torch.load(encoder_path))
+#obs_encoder.load_state_dict(torch.load(encoder_path))
 
-# For tcc rep.
-checkpoint_dir = "/home/thomastian/workspace/mvp_exp_data/tcc_model/checkpoints/1001.ckpt"
-checkpoint = torch.load(checkpoint_dir)
-obs_encoder.load_state_dict(checkpoint['model'])
-
-
-image_size = 112
-
-
-# # MVP encoder config
-# encoder_cfg = {'name': 'vits-mae-hoi', 'pretrain_dir':
-#                '/home/thomastian/workspace/mvp_exp_data/mae_encoders', 'freeze': True, 'emb_dim': 128}
-# emb_dim = encoder_cfg["emb_dim"]
-# obs_encoder = Encoder(
-#     model_name=encoder_cfg["name"],
-#     pretrain_dir=encoder_cfg["pretrain_dir"],
-#     freeze=encoder_cfg["freeze"],
-#     emb_dim=emb_dim
-# ).cpu()
-
-
+# # For tcc rep.
+# checkpoint_dir = "/home/thomastian/workspace/mvp_exp_data/tcc_model/checkpoints/1001.ckpt"
+# checkpoint = torch.load(checkpoint_dir)
+# obs_encoder.load_state_dict(checkpoint['model'])
 obs_encoder.eval()
 
 sinkorn_layer = OptimalTransportLayer(gamma=1)
 
 
-
-demo_path = '/home/thomastian/workspace/mvp_exp_data/rl_runs/9_12_OT_Kuka_datasize_exp/150/491b5e1f-864c-4b2e-8645-56345664bb85/train_sample/1/'
-
-expert_path = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/6_1_franka_push/contrastive_ranking_triplet/60/positive'
+image_size = 112
 
 
+P_set = []
 
-sample_a_embs = get_demo_embs_resnet(demo_path) # 45 x embd_size
-sample_b_embs = get_demo_embs_resnet(expert_path) # 45 x embd_size
+expert_path = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/6_1_franka_push/contrastive_ranking_triplet/60/positive/'
 
 
 
-pe = torch.zeros(45, 32)
-position = torch.arange(0, 45, dtype=torch.float).unsqueeze(1)
-div_term = torch.exp(torch.arange(0, 32, 2).float() * (-np.log(10000.0) / 32))
-pe[:, 0::2] = torch.sin(position * div_term)
-pe[:, 1::2] = torch.cos(position * div_term)
-sample_a_embs = sample_a_embs + pe * 0
-sample_b_embs = sample_b_embs + pe * 0
+def find_best_ot_reward(demo_path):
+    
+    dist_2_exp_list = []
 
-# # Build 45 tensor with 1, 2, 3, ..., 45
-# pe = torch.arange(0, 45).unsqueeze(1).float() * 0.00
-# # Concatenate the pe with the sample_a_embs and sample_b_embs
-# sample_a_embs = torch.cat((sample_a_embs, pe), dim=1)
-# sample_b_embs = torch.cat((sample_b_embs, pe), dim=1)
+    reward_list = []
 
+    for i in range(5):
+        expert_path = '/home/thomastian/workspace/mvp_exp_data/behavior_train_data/6_1_franka_push/' + str(i) + '/'
+        sample_a_embs = get_demo_embs_resnet(demo_path) # 45 x embd_size
+        sample_b_embs = get_demo_embs_resnet(expert_path) # 45 x embd_size
 
+        # Get cost matrix for samples using critic network.
+        cost_matrix = cosine_distance(sample_a_embs, sample_b_embs)
+        transport_plan = sinkorn_layer(cost_matrix)
 
+        ot_rewards = torch.diag(
+            torch.mm(transport_plan, cost_matrix.T)).detach().cpu().numpy()
 
-# Get cost matrix for samples using critic network.
-cost_matrix = cosine_distance(sample_a_embs, sample_b_embs)
-transport_plan = sinkorn_layer(cost_matrix)
+        dist_2_exp = np.sum(ot_rewards)
 
-# Visualize the transport plan as a heatmap using seaborn
-ax = sns.heatmap(transport_plan.detach().cpu().numpy())
-plt.show()
-
-ot_rewards = torch.diag(
-    torch.mm(transport_plan, cost_matrix.T)).detach().cpu().numpy()
-print(ot_rewards)
-print(np.sum(ot_rewards))
-
-# Plot the ot rewards
-plt.plot(ot_rewards)
-plt.show()
+        dist_2_exp_list.append(dist_2_exp)
+        reward_list.append(ot_rewards)
+    
+    # return the reward that has the smallest distance to the expert
+    return reward_list[np.argmin(dist_2_exp_list)]
 
 
-# # save the transport plan
-# np.save('kuka_tcc_plan_positive_example_1.npy', transport_plan.detach().cpu().numpy())
 
-# save the rewards
-#np.save('kuka_tcc_reward_move_one_by_one.npy', ot_rewards)
+# Given a numpy array A and a numpy array B, compute the spearman correlation between the A and B using scipy.stats.spearmanr
+def compute_spearmanr(A, B):
+    return stats.spearmanr(A, B)[0]
+
+for n in range(0, 50):
+
+
+    demo_path = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/6_1_franka_push/contrastive_ranking_triplet/' + str(n) + '/negative/'
+
+    ot_rewards = find_best_ot_reward(demo_path)
+
+    # sample_a_embs = get_demo_embs_resnet(demo_path) # 45 x embd_size
+    # sample_b_embs = get_demo_embs_resnet(expert_path) # 45 x embd_size
+
+    # # Get cost matrix for samples using critic network.
+    # cost_matrix = cosine_distance(sample_a_embs, sample_b_embs)
+    # transport_plan = sinkorn_layer(cost_matrix)
+
+    # ot_rewards = torch.diag(
+    #     torch.mm(transport_plan, cost_matrix.T)).detach().cpu().numpy()
+
+    true_pref_reward = np.load('/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/6_1_franka_push/contrastive_ranking_triplet/' + str(n) + '/negative/true_pref_reward_hist.npy')
+
+    # Down sample the true_pref_reward and ot_rewards
+    true_pref_reward = true_pref_reward[::4]
+    ot_rewards = ot_rewards[::4]
+
+    pho = compute_spearmanr(true_pref_reward, ot_rewards)
+    P_set.append(pho)
+    print(pho)
+
+print(np.mean(P_set))

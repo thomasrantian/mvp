@@ -180,15 +180,15 @@ class PPO:
                 }
                 self.preference_encoder = models.Resnet18LinearEncoderNet(**preference_encoder_cfg).cuda()
                 if self.reward_type == "OT":
-                    checkpoint_dir = "/home/thomastian/workspace/mvp_exp_data/tcc_model/checkpoints/1001.ckpt"
-                    checkpoint = torch.load(checkpoint_dir)
-                    self.preference_encoder.load_state_dict(checkpoint['model'])
-                    #encoder_path = DIR_PATH + "/mvp_exp_data/paper_used_encoders/8_30_resnet_franka_push_obs_encoder_datasize150.pt"
-                    #self.preference_encoder.load_state_dict(torch.load(encoder_path))    
+                    #checkpoint_dir = "/home/thomastian/workspace/mvp_exp_data/tcc_model/checkpoints/1001.ckpt"
+                    #checkpoint = torch.load(checkpoint_dir)
+                    #self.preference_encoder.load_state_dict(checkpoint['model'])
+                    encoder_path = DIR_PATH + "/mvp/11_19_resnet_franka_push_human_obs_encoder_datasize150.pt"
+                    self.preference_encoder.load_state_dict(torch.load(encoder_path))    
                     #self.actor_critic.obs_encoder = self.preference_encoder
                 if self.reward_type == "preference":
-                    self.preference_encoder.add_activation_layer()
-                    encoder_path = DIR_PATH +  "/visual_representation_alignment_exp_data/franka_push_preference_encoders/onlycontras_Sig_RLHF_9_12_resnet_franka_push_obs_encoder_datasize300.pt"
+                    #self.preference_encoder.add_activation_layer()
+                    encoder_path = DIR_PATH +  "/mvp/RLHF_11_19_resnet_franka_push_multi_obs_encoder_datasize150.pt"
                     self.preference_encoder.load_state_dict(torch.load(encoder_path))
                 self.preference_encoder.eval()
             if encoder_path is not None:
@@ -201,7 +201,7 @@ class PPO:
         self.rescale_ot_reward = False
         self.rescale_factor_OT = 1.0
         if self.reward_type == 'OT':
-            self.expert_demo_embs = self.get_expert_demo_embs( DIR_PATH + '/mvp_exp_data/behavior_train_data/6_1_franka_push/', 6)
+            self.expert_demo_embs = self.get_expert_demo_embs( DIR_PATH + '/mvp_exp_data/behavior_train_data/8_12_human_push/', 6)
 
         # Load a pre-trained model
         #self.load('/home/thomastian/workspace/mvp_exp_data/rl_runs/5_28_push_2_obs_OT/f64a994e-ff9d-4f02-9eb8-a04db73d6707/model_5950.pt')

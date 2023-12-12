@@ -13,7 +13,7 @@ cptdir: ""
 headless: True
 
 defaults:
-  - task: FrankaPushMulti
+  - task: FrankaPush
   - train: ${task}
   - hydra/job_logging: disabled
 

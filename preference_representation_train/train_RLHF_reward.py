@@ -51,9 +51,9 @@ feature_aligner = FeatureAligner(sequence_length=30, embed_dim=32, n_heads=1, n_
 
 
 # Extract the train data from the directory
-contrastive_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/6_1_franka_push/contrastive_ranking_triplet'
+contrastive_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/11_19_franka_push_multi_obj/contrastive_ranking_triplet'
 contrastive_ranking_data = extract_data_from_dir('contrastive', contrastive_ranking_data_dir, sequence_length, 'resnet').cuda()
-equal_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/6_1_franka_push/equal_ranking_triplet'
+equal_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/11_19_franka_push_multi_obj/equal_ranking_triplet'
 equal_ranking_data = extract_data_from_dir('equal_ranking', equal_ranking_data_dir, sequence_length, 'resnet').cuda()
 
 
@@ -78,7 +78,7 @@ set_batch_size = 10
 sequence_length = train_contrastive_ranking_data.shape[2]
 sinkorn_layer = OptimalTransportLayer(gamma = 1)
 
-enable_equal_ranking = True
+enable_equal_ranking = False
 enable_batch_processing = True
 enable_feature_aligner = False
 
@@ -204,5 +204,5 @@ for epoch in range(50):
     print('Validation loss: %.3f' % val_loss)
     if val_loss < best_eval_loss:
         best_eval_loss = val_loss
-        torch.save(obs_encoder.state_dict(), 'RLHF_9_12_resnet_franka_push_obs_encoder_datasize100.pt')
+        torch.save(obs_encoder.state_dict(), 'RLHF_11_19_resnet_franka_push_multi_obs_encoder_datasize150.pt')
         print('Model saved.')

@@ -17,11 +17,17 @@ reward_mode = 'OT'
 # Set the sequence length of the demonstration. For now: 50 for sweep, 30 for collision avoidance
 sequence_length = 45
 
+
+enable_equal_ranking = False
+enable_batch_processing = True
+enable_feature_aligner = False
+
 # Extract the train data from the directory
-contrastive_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/9_12_franka_push/contrastive_ranking_triplet'
-contrastive_ranking_data = extract_data_from_dir('contrastive', contrastive_ranking_data_dir, sequence_length, 'resnet').cuda()
-equal_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/9_12_franka_push/equal_ranking_triplet'
-equal_ranking_data = extract_data_from_dir('equal_ranking', equal_ranking_data_dir, sequence_length, 'resnet').cuda()
+contrastive_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/8_12_human_push/contrastive_ranking_triplet'
+contrastive_ranking_data = extract_data_from_dir('contrastive', contrastive_ranking_data_dir, sequence_length, 'resnet', 250).cuda()
+if enable_equal_ranking:
+    equal_ranking_data_dir = '/home/thomastian/workspace/mvp_exp_data/representation_model_train_data/11_19_franka_push_multi_obj/equal_ranking_triplet'
+    equal_ranking_data = extract_data_from_dir('equal_ranking', equal_ranking_data_dir, sequence_length, 'resnet').cuda()
 
 # Make sure contrastive ranking data and equal ranking data are the same size
 # contrastive_ranking_data = contrastive_ranking_data[0:equal_ranking_data.shape[0], :, :, :, :, :]
@@ -37,17 +43,20 @@ for data_size in data_size_set:
     eval_size = contrastive_ranking_data_size - train_size
     train_contrastive_ranking_data = contrastive_ranking_data[0:train_size, :, :, :, :, :]
     eval_contrastive_ranking_data = contrastive_ranking_data[train_size:, :, :, :, :, :]
-    # Split equal ranking data into train and eval. The slip is 80:20
-    equal_ranking_data_size = equal_ranking_data.shape[0]
-    equal_ranking_data_size = data_size
-    train_size = int(equal_ranking_data_size * 0.8)
-    eval_size = equal_ranking_data_size - train_size
-    train_equal_ranking_data = equal_ranking_data[0:train_size, :, :, :, :, :]
-    eval_equal_ranking_data = equal_ranking_data[train_size:, :, :, :, :, :]
+    
+    if enable_equal_ranking:
+        # Split equal ranking data into train and eval. The slip is 80:20
+        equal_ranking_data_size = equal_ranking_data.shape[0]
+        equal_ranking_data_size = data_size
+        train_size = int(equal_ranking_data_size * 0.8)
+        eval_size = equal_ranking_data_size - train_size
+        train_equal_ranking_data = equal_ranking_data[0:train_size, :, :, :, :, :]
+        eval_equal_ranking_data = equal_ranking_data[train_size:, :, :, :, :, :]
+    else:
+        train_equal_ranking_data = None
+        eval_equal_ranking_data = None
 
-    enable_equal_ranking = False
-    enable_batch_processing = True
-    enable_feature_aligner = False
+
 
     # Initialize the obs_encoder (Resnet18)
     kwargs = {
@@ -229,7 +238,7 @@ for data_size in data_size_set:
             feature_aligner.train()
         print('Validation loss: %.3f' % val_loss)
 
-        encoder_save_name = '9_15_resnet_franka_push_obs_encoder_datasize' + str(data_size) +'.pt'
+        encoder_save_name = '11_19_resnet_franka_push_human_obs_encoder_datasize' + str(data_size) +'.pt'
         if val_loss < best_eval_loss:
             best_eval_loss = val_loss
             if enable_feature_aligner:
