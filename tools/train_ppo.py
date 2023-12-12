@@ -37,7 +37,7 @@ def train(cfg: omegaconf.DictConfig):
 
     # Change the log dir in the mvp_exp_data folder
     # generate a unique id for the experiment
-    cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/11_22_human/" + str(uuid.uuid4())
+    cfg.logdir = DIR_PATH + "/mvp_exp_data/rl_runs/12_8_franka_push/" + str(uuid.uuid4())
     cfg.task.env.numEnvs = 50
     
     # Set the reward type
